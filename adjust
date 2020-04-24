@@ -1,0 +1,50 @@
+import requests
+import json
+
+harness = {
+    "infraDef": "opsani-servo",  # workflow.variables.InfraDefinition_KUBERNETES
+    "mem": "256Mi",  # ${workflow.variables.mem}
+    "cpu": "500m",  # ${workflow.variables.cpu}
+    "adjust": "True",  # ${workflow.variables.adjust}
+    "name": "canary",  # ${workflow.variables.name}
+    "buildNo": "200",  # ${artifact.buildNo}
+    "service": "web-canary-deployment",  # ${service.name}
+    "token": "",
+    "accountId": "",
+    "application": "",
+    "apiKey": "",
+}
+
+url = f"https://app.harness.io/gateway/api/webhooks/{harness['token']}?accountId={harness['accountId']}"
+headers = {"content-type": "application/json"}
+data = {
+    "application": harness["application"],
+    "parameters": {
+        "Service": harness["service"],
+        "InfraDefinition_KUBERNETES": harness["infraDef"],
+        "cpu": harness["cpu"],
+        "mem": harness["mem"],
+        "adjust": harness["adjust"],
+        "name": harness["name"],
+    },
+    "artifacts": [
+        {
+            "service": harness["service"],
+            "buildNumber": f"web-canary-deployment_{harness['buildNo']}",
+        }
+    ],
+}
+
+result = requests.post(url, json=data, headers=headers).json()
+requestId = result["requestId"]
+apiUrl = result["apiUrl"]
+print(f"requestID: {requestId}, status: {result['status']}")
+print(f"apiUrl: {apiUrl}")
+
+headers = {
+    "X-API-KEY": harness["apiKey2"],
+    "content-type": "application/json",
+}
+
+state = requests.get(url=apiUrl, headers=headers).json()
+print(state.status_code)
