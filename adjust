@@ -1,18 +1,22 @@
 import requests
 import json
+import yaml
+
+with open("config.yaml", "r") as ymlfile:
+    config = yaml.load(ymlfile,Loader=yaml.FullLoader)
 
 harness = {
-    "infraDef": "opsani-servo",  # workflow.variables.InfraDefinition_KUBERNETES
+    "infraDef": "cluster01",  # workflow.variables.InfraDefinition_KUBERNETES
     "mem": "256Mi",  # ${workflow.variables.mem}
     "cpu": "500m",  # ${workflow.variables.cpu}
     "adjust": "True",  # ${workflow.variables.adjust}
     "name": "canary",  # ${workflow.variables.name}
     "buildNo": "200",  # ${artifact.buildNo}
     "service": "web-canary-deployment",  # ${service.name}
-    "token": "",
-    "accountId": "",
-    "application": "",
-    "apiKey": "",
+    "token": config['harness']['token'],
+    "accountId": config['harness']['accountId'],
+    "application": config['harness']['application'],
+    "apiKey": config['harness']['apiKey'],
 }
 
 url = f"https://app.harness.io/gateway/api/webhooks/{harness['token']}?accountId={harness['accountId']}"
@@ -35,16 +39,19 @@ data = {
     ],
 }
 
-result = requests.post(url, json=data, headers=headers).json()
-requestId = result["requestId"]
-apiUrl = result["apiUrl"]
-print(f"requestID: {requestId}, status: {result['status']}")
+trigger_result = requests.post(url, json=data, headers=headers).json()
+
+requestId = trigger_result["requestId"]
+apiUrl = trigger_result["apiUrl"]
+print(f"requestID: {requestId}, status: {trigger_result['status']}")
 print(f"apiUrl: {apiUrl}")
 
 headers = {
-    "X-API-KEY": harness["apiKey2"],
+    "X-API-KEY": harness["apiKey"],
     "content-type": "application/json",
 }
+ 
+harness_api_url = apiUrl.replace("https://app.harness.io/api/","https://app.harness.io/gateway/api/")
 
-state = requests.get(url=apiUrl, headers=headers).json()
-print(state.status_code)
+state = requests.get(url=harness_api_url, headers=headers).json()
+print(state)
