@@ -1,20 +1,16 @@
+import sys
 import requests
 import json
 import yaml
-import sys
 
 with open("config.yaml", "r") as ymlfile:
     config = yaml.load(ymlfile,Loader=yaml.FullLoader)
 
 harness = {
-    "infraDef": "cluster01",  # workflow.variables.InfraDefinition_KUBERNETES
-    "cpu": sys.argv[1],  # ${workflow.variables.cpu}
-    "mem": sys.argv[2],  # ${workflow.variables.mem}
-    "adjust": "True",  # ${workflow.variables.adjust}
-    "name": "canary",  # ${workflow.variables.name}
-    "buildNo": "200",  # ${artifact.buildNo}
-    "service": "web-canary-deployment",  # ${service.name}
-    "token": config['adjust']['token'],
+    "cpu": sys.argv[1],  # ${workflow.variables.mem}
+    "mem": sys.argv[2],  # ${workflow.variables.cpu}
+    "promote": "True", # ${workflow.variables.promote}
+    "token": config['promote']['token'],
     "accountId": config['harness']['accountId'],
     "application": config['harness']['application'],
     "apiKey": config['harness']['apiKey'],
@@ -25,19 +21,10 @@ headers = {"content-type": "application/json"}
 data = {
     "application": harness["application"],
     "parameters": {
-        "Service": harness["service"],
-        "InfraDefinition_KUBERNETES": harness["infraDef"],
         "cpu": harness["cpu"],
         "mem": harness["mem"],
-        "adjust": harness["adjust"],
-        "name": harness["name"],
-    },
-    "artifacts": [
-        {
-            "service": harness["service"],
-            "buildNumber": f"web-canary-deployment_{harness['buildNo']}",
-        }
-    ],
+        "promote": harness["promote"],
+    }
 }
 
 trigger_result = requests.post(url, json=data, headers=headers).json()
