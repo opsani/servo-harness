@@ -54,4 +54,6 @@ def get_state(config):
         "Authorization": f"Bearer {config['opsani']['token']}",
     }
     opsani_config = requests.get(url, headers=headers).json()
-    return opsani_config
+    cpu = opsani_config['adjustment']['control']['userdata']['cpu']
+    mem = opsani_config['adjustment']['control']['userdata']['mem']
+    return cpu,mem
