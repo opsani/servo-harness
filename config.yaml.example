@@ -1,0 +1,13 @@
+harness:
+  accountId: "<HARNESS_ACCOUNT_ID>"
+  application: "<HARNESS_APPLICATION_ID>"
+  apiKey: "<HARNESS_API_KEY>"
+adjust:
+  token: "<TRIGGER_TOKEN>"
+promote:
+  token: "<TRIGGER_TOKEN>"
+opsani:
+  account: <OPSANI_ACCOUNT>
+  app_name: <OPSANI_APPLICATION>
+  token: <OPSANI_TOKEN>
+
