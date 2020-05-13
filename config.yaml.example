@@ -1,13 +1,22 @@
 harness:
-  accountId: "<HARNESS_ACCOUNT_ID>"
-  application: "<HARNESS_APPLICATION_ID>"
-  apiKey: "<HARNESS_API_KEY>"
-adjust:
-  token: "<TRIGGER_TOKEN>"
-promote:
-  token: "<TRIGGER_TOKEN>"
-opsani:
-  account: <OPSANI_ACCOUNT>
-  app_name: <OPSANI_APPLICATION>
-  token: <OPSANI_TOKEN>
-
+  settings: # OPTIONAL. Guard rails for canary adjustment
+    mem:
+      min: 0.5
+      max: 1
+      step: 0.25
+      default: 0.5 # Returned as value when OCO userdata does not contain value for memory
+    cpu:
+      min: 0.5
+      max: 1
+      step: 0.25
+      default: 0.5 # Returned as value when OCO userdata does not contain value for cpu
+  account_id: aaaa # REQUIRED. Id of harness account
+  application: bbbb # REQUIRED. Id of the harness application
+  api_key: cccc # REQUIRED. X-API-KEY for authentication during retrieval of workflow status
+  adjust_token: dddd # REQUIRED. Webhook event token for adjustment of canary settings
+  promote_token: eeee # NOT IMPLEMENTED YET. Webhook event token for promotion of settings
+  opsani_account: ffff # REQUIRED. Optune account name
+  opsani_app_name: gggg # REQUIRED. Name of application in Optune
+  opsani_token: hhhh # REQUIRED. Optune auth token
+  target_platform: k8s # REQUIRED. Either 'ecs' or 'k8s'
+  adjust_timeout: 3600 # OPTIONAL. How long to wait for workflow to be in SUCCESS or FAILED status

@@ -1,24 +1,47 @@
 # Opsani Servo adjust plugin for Harness.io
 
-Trigger and watch a workflow in Harness.io as a method of adjusting workflow parameters
+Optune servo driver for Harness.io
 
-Supported parameters workflow parameters:
+This driver supports updating the cpu and memory of Kubernetes or Amazon ECS deployments by triggering a harness workflow passing the desired values as parameters
 
-    "infraDef": "opsani-servo",  # workflow.variables.InfraDefinition_KUBERNETES
-    "mem": "256Mi",  # ${workflow.variables.mem}
-    "cpu": "500m",  # ${workflow.variables.cpu}
-    "adjust": "True",  # ${workflow.variables.adjust}
-    "name": "canary",  # ${workflow.variables.name}
-    "buildNo": "200",  # ${artifact.buildNo}
-    "service": "web-canary-deployment",  # ${service.name}
+## Config
 
-Static config parameters:
+```yaml
+harness:
+  settings: # OPTIONAL. Guard rails for canary adjustment
+    mem:
+      min: 0.5
+      max: 1
+      step: 0.25
+      default: 0.5 # Returned as value when OCO userdata does not contain value for memory
+    cpu:
+      min: 0.5
+      max: 1
+      step: 0.25
+      default: 0.5 # Returned as value when OCO userdata does not contain value for cpu
+  account_id: aaaa # REQUIRED. Id of harness account
+  application: bbbb # REQUIRED. Id of the harness application
+  api_key: cccc # REQUIRED. X-API-KEY for authentication during retrieval of workflow status
+  adjust_token: dddd # REQUIRED. Webhook event token for adjustment of canary settings
+  promote_token: eeee # NOT IMPLEMENTED YET. Webhook event token for promotion of settings
+  opsani_account: ffff # REQUIRED. Optune account name
+  opsani_app_name: gggg # REQUIRED. Name of application in Optune
+  opsani_token: hhhh # REQUIRED. Optune auth token
+  target_platform: k8s # REQUIRED. Either 'ecs' or 'k8s'
+  adjust_timeout: 3600 # OPTIONAL. How long to wait for workflow to be in SUCCESS or FAILED status
+```
 
-    "token": ""
-    "accountId": ""
-    "application": ""
-    "apiKey": ""
+## How to run tests
 
-Create a trigger in Harness for a Workflow
-Capture the parameters above from the proposed CURL command
-Add to config.yaml
+Prerequisites:
+
+* Python 3.5 or higher
+* PyTest 4.3.0 or higher
+
+Follow these steps:
+
+1. Pull the repository
+1. Copy/symlink `adjust` (no file extension) from this repo's project folder to folder `test/`, rename to `adjust_driver.py`
+1. Copy/symlink `adjust.py` from `https://github.com/opsani/servo/tree/master/` to folder `test/`
+1. Add a valid `config.yaml` to folder `test/` (see config.yaml.example for a reference)
+1. Run `python3 -m pytest` from the test folder
