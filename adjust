@@ -116,22 +116,22 @@ class HarnessDriver(Adjust):
             raise AdjustError('Unable to query OCO config. Status code {}. Data {}'.format(response.status_code, response.text))
 
         opsani_config = response.json()
-        userdata = opsani_config.get('adjustment', {}).get('control', {}).get('userdata')
+        canary = opsani_config.get('adjustment', {}).get('control', {}).get('userdata', {}).get('canary')
 
-        if userdata and userdata.get('cpu'):
+        if canary and canary.get('cpu'):
             if self.config['target_platform'] == 'k8s':
-                settings['cpu']['value'] = cpuunits(userdata['cpu'])
+                settings['cpu']['value'] = cpuunits(canary['cpu'])
             elif self.config['target_platform'] == 'ecs':
-                settings['cpu']['value'] = userdata['cpu'] / 1024 # convert aws cpu units to vCPU
+                settings['cpu']['value'] = float(canary['cpu']) / 1024 # convert aws cpu units to vCPU
         else:
             # TODO: require default in config validation or implement default values for setting defaults
             settings['cpu']['value'] = self.config.get('cpu', {}).get('default')
         
-        if userdata and userdata.get('mem'):
+        if canary and canary.get('mem'):
             if self.config['target_platform'] == 'k8s':
-                settings['mem']['value'] = memunits(userdata['mem'])
+                settings['mem']['value'] = memunits(canary['mem'])
             elif self.config['target_platform'] == 'ecs':
-                settings['mem']['value'] = userdata['mem'] / 1024 # convert MiB to GiB
+                settings['mem']['value'] = float(canary['mem']) / 1024 # convert MiB to GiB
         else:
             settings['mem']['value'] = self.config.get('mem', {}).get('default')
 

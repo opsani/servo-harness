@@ -2,7 +2,7 @@
 
 Optune servo driver for Harness.io
 
-This driver supports updating the cpu and memory of Kubernetes or Amazon ECS deployments by triggering a harness workflow passing the desired values as parameters
+This driver supports updating the cpu and memory of Kubernetes or Amazon ECS deployments by triggering a harness workflow passing the desired values as parameters. It then monitors the status of the workflow until it reaches the SUCCESS state. If it reaches the FAILED state, an error will be raised.
 
 ## Config
 
