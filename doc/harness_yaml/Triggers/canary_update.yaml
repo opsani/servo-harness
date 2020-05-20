@@ -1,0 +1,23 @@
+harnessApiVersion: '1.0'
+type: TRIGGER
+artifactSelections:
+- artifactStreamName: opsani_co-http
+  regex: false
+  serviceName: web-canary-deployment
+  type: WEBHOOK_VARIABLE
+description: Triggers an Opsani Canary deployment
+executionName: Opsani Rolling
+executionType: Workflow
+triggerCondition:
+- type: WEBHOOK
+workflowVariables:
+- name: adjust
+  value: 'False'
+- name: name
+  value: canary
+- entityType: SERVICE
+  name: Service
+  value: web-canary-deployment
+- entityType: INFRASTRUCTURE_DEFINITION
+  name: InfraDefinition_KUBERNETES
+  value: cluster01

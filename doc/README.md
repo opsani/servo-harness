@@ -29,6 +29,8 @@ We'll need two main workflows for the integration to work.  Note that there is n
 
 #### Opsani Canary Workflow
 
+![workflow](images/opsani_rolling_workflow.png "Opsani Rolling Workflow")
+
 For the purposes of our testing, we named the first workflow "Opsani Rolling."  This is the workflow responsible for deploying the Opsani Canary, which will be triggered to run through Harness by the Servo as it makes adjustments to resources.
 
 The Opsani required components here are:
@@ -59,6 +61,8 @@ ${workflow.variables.adjust}=="True" or ${workflow.variables.name}=="canary"
 ```
 #### Opsani Promote Workflow
 
+![workflow](images/opsani_promote_workflow.png "Opsani Promote Workflow")
+
 This Workflow is Triggered via the Servo when we find ideal settings that we want to promote to production and will need variables setup for the resources we plan on managing, for testing we've been using `cpu` and `mem` for these values.  
 
 The workflow has two steps:  
@@ -76,16 +80,42 @@ A few notes on this:
 
 #### Pipelines
 
+![pipelines](images/pipelines.png "Pipelines")
+
 The pipelines are pretty straightfoward.  We simply need one pipeline that includes the workflow to deploy your mainline application and the canary deployment.  Then a second pipeline to run the Promotion Workflow.
 
 #### Triggers
 
-We'll need four triggers to support and assist with the automation
+![triggers](images/triggers.png "Triggers")
+
+We'll need four triggers to support and assist with the automation.  Triggers can be defined either via the Harness UI or via YAML files in your applications Harness repo.
 
 1. on_new_artifact
 
-   This is an `on new artifact` type Trigger, pointed to your artifact source.  This triggers a deployment when your artifact is updated via the `Push to Prod` Pipeline you would have setup.
+   This is an `on new artifact` type Trigger, pointed to your artifact source.  This triggers a deployment when your artifact is updated via the `Push to Prod` Pipeline and is the primary Trigger we are aiming to update during a Promotion.
 
+   Harness YAML:
+
+```yaml
+   harnessApiVersion: '1.0'
+   type: TRIGGER
+   artifactSelections:
+   - regex: false
+     serviceName: web-canary-deployment
+     type: ARTIFACT_SOURCE
+   executionName: Push to Prod
+   executionType: Pipeline
+   triggerCondition:
+   - type: NEW_ARTIFACT
+     artifactStreamName: opsani_co-http
+     regex: false
+     serviceName: web-canary-deployment
+   workflowVariables:
+   - name: mem
+     value: 512Mi
+   - name: cpu
+     value: 200m
+``` 
 2. canary_update
 
    This is an `On Webhook Event` type Trigger with a `Custom` payload that should be setup to execute the `Opsani Rolling` Wrkflow.  Note that we're calling the Workflow directly instead of a Pipeline here.
@@ -103,3 +133,10 @@ We'll need four triggers to support and assist with the automation
 More incoming, but the Servo install should be as simple as running
 ```bash
 kubectl apply -f <servo.yaml>
+```
+
+#### Summary
+
+![application](images/application.png "Application")
+
+The [../doc/harness_yaml/](../doc/harness_yaml) directory conatains a copy of all the YAML that Harness generated for the above scenario for reference.  If you have any questions/comments/feedback please reach out to me | ben@opsani.com

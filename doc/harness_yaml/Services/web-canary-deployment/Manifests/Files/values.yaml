@@ -1,0 +1,5 @@
+name: ${workflow.variables.name}
+canaryname: ${env.name}-canary
+cpu: ${workflow.variables.cpu}
+mem: ${workflow.variables.mem}
+adjust: ${workflow.variables.adjust}

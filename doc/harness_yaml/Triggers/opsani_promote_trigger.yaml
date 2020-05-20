@@ -1,0 +1,13 @@
+harnessApiVersion: '1.0'
+type: TRIGGER
+executionName: Opsani Promotion
+executionType: Pipeline
+triggerCondition:
+- type: WEBHOOK
+workflowVariables:
+- name: promote
+  value: 'True'
+- name: mem
+  value: 512Mi
+- name: cpu
+  value: 200m
