@@ -1,0 +1,18 @@
+harnessApiVersion: '1.0'
+type: TRIGGER
+artifactSelections:
+- regex: false
+  serviceName: web-canary-deployment
+  type: ARTIFACT_SOURCE
+executionName: Push to Prod
+executionType: Pipeline
+triggerCondition:
+- type: NEW_ARTIFACT
+  artifactStreamName: opsani_co-http
+  regex: false
+  serviceName: web-canary-deployment
+workflowVariables:
+- name: mem
+  value: 512Mi
+- name: cpu
+  value: 200m

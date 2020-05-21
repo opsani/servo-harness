@@ -1,0 +1,44 @@
+#!/usr/bin/env python3
+import sys
+import requests
+import json
+import yaml
+
+with open("config.yaml", "r") as ymlfile:
+    config = yaml.load(ymlfile,Loader=yaml.FullLoader)
+
+harness = {
+    "cpu": sys.argv[1],  # ${workflow.variables.mem}
+    "mem": sys.argv[2],  # ${workflow.variables.cpu}
+    "promote": "True", # ${workflow.variables.promote}
+    "token": config['promote']['token'],
+    "accountId": config['harness']['accountId'],
+    "application": config['harness']['application'],
+    "apiKey": config['harness']['apiKey'],
+}
+
+url = f"https://app.harness.io/gateway/api/webhooks/{harness['token']}?accountId={harness['accountId']}"
+headers = {"content-type": "application/json"}
+data = {
+    "application": harness["application"],
+    "parameters": {
+        "cpu": harness["cpu"],
+        "mem": harness["mem"],
+        "promote": harness["promote"],
+    }
+}
+
+trigger_result = requests.post(url, json=data, headers=headers).json()
+
+requestId = trigger_result["requestId"]
+apiUrl = trigger_result["apiUrl"]
+
+headers = {
+    "X-API-KEY": harness["apiKey"],
+    "content-type": "application/json",
+}
+ 
+harness_api_url = apiUrl.replace("https://app.harness.io/api/","https://app.harness.io/gateway/api/")
+
+state = requests.get(url=harness_api_url, headers=headers).json()
+print(state)

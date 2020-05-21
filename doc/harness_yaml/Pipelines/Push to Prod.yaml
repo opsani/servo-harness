@@ -1,0 +1,39 @@
+harnessApiVersion: '1.0'
+type: PIPELINE
+pipelineStages:
+- type: ENV_STATE
+  name: Deploy Mainline
+  parallel: false
+  skipCondition:
+    type: DO_NOT_SKIP
+  stageName: STAGE 1
+  workflowName: Opsani Rolling
+  workflowVariables:
+  - name: adjust
+    value: 'False'
+  - name: name
+    value: mainline
+  - entityType: SERVICE
+    name: Service
+    value: web-canary-deployment
+  - entityType: INFRASTRUCTURE_DEFINITION
+    name: InfraDefinition_KUBERNETES
+    value: cluster01
+- type: ENV_STATE
+  name: Deploy Opsani Canary
+  parallel: false
+  skipCondition:
+    type: DO_NOT_SKIP
+  stageName: STAGE 2
+  workflowName: Opsani Rolling
+  workflowVariables:
+  - name: adjust
+    value: 'False'
+  - name: name
+    value: canary
+  - entityType: SERVICE
+    name: Service
+    value: web-canary-deployment
+  - entityType: INFRASTRUCTURE_DEFINITION
+    name: InfraDefinition_KUBERNETES
+    value: cluster01

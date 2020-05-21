@@ -1,0 +1,41 @@
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+
+metadata:
+  name: {{.Values.name}}
+  labels:
+    app: web
+
+spec:
+  replicas: 1
+  revisionHistoryLimit: 2
+  selector:
+    matchLabels:
+      app: web
+      role: opsani-canary
+      
+  template:
+    metadata:
+      labels:
+        app: web
+        role: opsani-canary
+      annotations:
+        prometheus.io/path: /stats/prometheus
+        prometheus.io/port: '9901'
+        prometheus.io/scrape: 'true'
+    spec:
+      containers:
+      - name: main
+        image: opsani/co-http:latest
+        imagePullPolicy: Always
+        args: [ 'busy=10' ]
+        resources:
+          limits:
+            cpu: {{.Values.cpu}}
+            memory: {{.Values.mem}}
+          requests:
+            cpu: {{.Values.cpu}}
+            memory: {{.Values.mem}}
+        ports:
+          - containerPort: 8080

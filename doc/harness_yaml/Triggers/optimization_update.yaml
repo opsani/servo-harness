@@ -1,0 +1,11 @@
+harnessApiVersion: '1.0'
+type: TRIGGER
+artifactSelections:
+- regex: false
+  serviceName: web-canary-deployment
+  type: PIPELINE_SOURCE
+executionName: Push to Prod
+executionType: Pipeline
+triggerCondition:
+- type: PIPELINE_COMPLETION
+  pipelineName: Opsani Promotion

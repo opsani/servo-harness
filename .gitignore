@@ -130,3 +130,10 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Servo Adjust base class
+adjust.py
+
+# Test artifacts
+test/adjust_driver.py
+test/config.yaml
