@@ -9,7 +9,7 @@ REPO_NAME="co-http-harness"
 REPO_URL="git@github.com:benburdick/co-http-harness.git"
 
 # YAML files to be modified (space separated)
-TRIGGERS="opsani_promote_trigger.yaml optimization_update.yaml canary_update.yaml ancestry_on_new_artifact.yaml"
+TRIGGERS="opsani_promote_trigger.yaml optimization_update.yaml canary_update.yaml on_new_artifact.yaml"
 
 
 clone(){
