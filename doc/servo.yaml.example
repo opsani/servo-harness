@@ -33,7 +33,7 @@ data:
          default: 0.5
      account_id: "<HARNESS_ACCOUNT_ID>"
      application: "<HARNESS_APPLICATION_ID>"
-     adjust_token: "MxmPfwpO9T7pIFYAJDfIECTs8KjfGLoLjAVh7FC3"
+     adjust_token: "<TRIGGER_TOKEN>"
      promote_token: "<TRIGGER_TOKEN"
      opsani_account: <OPSANI_ACCOUNT>
      opsani_app_name: <OPSANI_APPLICATION>
