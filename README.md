@@ -48,4 +48,8 @@ Follow these steps:
 
 ## Harness Integration
 
-Fore documention on integrating into Harness, please see [Integration Documentation](../doc/README.md)
+Fore documention on integrating into Harness, please see [Integration Documentation](doc/README.md)
+
+## Servo
+
+See [Sample Servo Manifest](doc/servo.yaml.example) for an example of how to deploy the servo via k8s.
