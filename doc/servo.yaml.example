@@ -1,0 +1,155 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: opsani-servo-config
+data:
+  config.yaml: |
+   application:
+     components:
+       harness:
+         settings:
+           mem:
+             min: 0.5
+             max: 1
+             step: 0.25
+             default: 0.5
+           cpu:
+             min: 0.5
+             max: 1
+             step: 0.25
+             default: 0.5
+   harness:
+     settings:
+       mem:
+         min: 0.5
+         max: 1
+         step: 0.25
+         default: 0.5
+       cpu:
+         min: 0.5
+         max: 1
+         step: 0.25
+         default: 0.5
+     account_id: "<HARNESS_ACCOUNT_ID>"
+     application: "<HARNESS_APPLICATION_ID>"
+     adjust_token: "<TRIGGER_TOKEN>"
+     promote_token: "<TRIGGER_TOKEN"
+     opsani_account: <OPSANI_ACCOUNT>
+     opsani_app_name: <OPSANI_APPLICATION>
+     adjust_timeout: 3600
+     target_platform: k8s
+   vegeta:
+     rate: 5/1m
+     duration: 60s
+     target: GET http://google.com
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: opsani-token
+type: Opaque
+data:
+  token: <OPSANI_TOKEN|base64>
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: harness-auth
+type: Opaque
+data:
+  token: <HARNESS_API_KEY|base64>
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: opsani-servo
+  labels:
+    comp: opsani-servo
+spec:
+  replicas: 1
+  revisionHistoryLimit: 2
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      comp: opsani-servo
+  template:
+    metadata:
+      labels:
+        comp: opsani-servo
+    spec:
+      serviceAccountName: opsani-servo
+      volumes:
+      - name: auth
+        secret:
+          secretName: opsani-token
+          items:
+            - key: token
+              path: token
+      - name: harness-auth
+        secret:
+          SecretName: harness-auth
+          items:
+            - key: token
+              path: token
+      - name: config
+        configMap:
+          name: opsani-servo-config
+      containers:
+      - name: web
+        image: bburdick/servo-harness-vegeta:dev
+        args:
+        - <OPSANI_APPLICATION>
+        - '--auth-token=/etc/opsani-auth/token'
+        env:
+        - name: OPTUNE_ACCOUNT
+          value: <OPSANI_ACCOUNT> 
+        - name: OPTUNE_NAMESPACE
+          value: opsani-servo
+        volumeMounts:
+        - name: auth
+          mountPath: '/etc/opsani-auth'
+          readOnly: true
+        - name: config
+          mountPath: /servo/config.yaml
+          subPath: config.yaml
+          readOnly: true
+        - name: harness-auth
+          mountPath: '/etc/harness-auth/token'
+          readOnly: true
+        resources:
+          limits:
+            cpu: 250m
+            memory: 256Mi
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: opsani-servo
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: opsani-servo
+rules:
+- apiGroups: ["apps","extensions"]
+  resources: ["deployments"]
+  verbs: ["get", "list", "patch"]
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "patch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: opsani-servo
+subjects:
+- kind: ServiceAccount
+  name: opsani-servo
+roleRef:
+  kind: Role
+  name: opsani-servo
+  apiGroup: rbac.authorization.k8s.io

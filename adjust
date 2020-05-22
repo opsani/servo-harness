@@ -49,12 +49,10 @@ class HarnessDriver(Adjust):
         h = c['harness']
         assert h.get('account_id'), 'No account_id was included in harness configuration located at {}'.format(config_path)
         assert h.get('application'), 'No application was included in harness configuration located at {}'.format(config_path)
-        assert h.get('api_key'), 'No api_key was included in harness configuration located at {}'.format(config_path)
         assert h.get('adjust_token'), 'No adjust_token was included in harness configuration located at {}'.format(config_path)
         # assert h.get('promote_token'), 'No promote_token was included in harness configuration located at {}'.format(config_path)
         assert h.get('opsani_account'), 'No opsani_account was included in harness configuration located at {}'.format(config_path)
         assert h.get('opsani_app_name'), 'No opsani_app_name was included in harness configuration located at {}'.format(config_path)
-        assert h.get('opsani_token'), 'No opsani_token was included in harness configuration located at {}'.format(config_path)
         assert h.get('target_platform'), 'No target_platform was included in harness configuration located at {}'.format(config_path)
         assert h['target_platform'] in ['k8s', 'ecs'], 'Specified target_platform {} is not supported (in config located at{}). Supported values are "ecs" and "k8s"'\
             ''.format(h['target_platform'], config_path)
@@ -107,9 +105,12 @@ class HarnessDriver(Adjust):
             self.config['opsani_account'],
             self.config['opsani_app_name']
         )
+
+        with open('/etc/opsani-auth/token', 'r') as auth_file:
+            opsani_token = auth_file.read().strip()
         headers = {
             "Content-type": "application/merge-patch+json",
-            "Authorization": "Bearer {}".format(self.config['opsani_token']),
+            "Authorization": "Bearer {}".format(opsani_token),
         }
         response = requests.get(url, headers=headers)
         if not response.ok:
@@ -169,8 +170,11 @@ class HarnessDriver(Adjust):
         if not trigger_result.get('apiUrl'):
             raise AdjustError('Workflow trigger response contained no status url. Response: {}'.format(response.text))
         status_url = trigger_result["apiUrl"].replace("https://app.harness.io/api/","https://app.harness.io/gateway/api/")
+        
+        with open('/etc/harness-auth/token', 'r') as auth_file:
+            harness_api_key = auth_file.read().strip()
         status_headers = {
-            "X-API-KEY": self.config["api_key"],
+            "X-API-KEY": harness_api_key,
             "content-type": "application/json",
         }
 
