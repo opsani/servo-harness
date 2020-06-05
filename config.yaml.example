@@ -25,10 +25,13 @@ harness:
       step: 0.25
       default: 0.5 # Returned as value when OCO userdata does not contain value for cpu
   account_id: aaaa # REQUIRED. Id of harness account
-  application: bbbb # REQUIRED. Id of the harness application
-  adjust_token: dddd # REQUIRED. Webhook event token for adjustment of canary settings
+  application_name: bbbb # REQUIRED. Name of the harness application
+  adjust_token: cccc # REQUIRED. Webhook event token for adjustment of canary settings
+  artifact_source_name: dddd # REQUIRED. Name of Artifact to be deployed
+  infradefinition_ecs: eeee # REQUIRED. Name of Harness infradefinition_ecs
   promote_token: eeee # NOT IMPLEMENTED YET. Webhook event token for promotion of settings
   opsani_account: ffff # REQUIRED. Optune account name
   opsani_app_name: gggg # REQUIRED. Name of application in Optune
   target_platform: k8s # REQUIRED. Either 'ecs' or 'k8s'
   adjust_timeout: 3600 # OPTIONAL. How long to wait for workflow to be in SUCCESS or FAILED status
+  service: # REQUIRED Name of Harness service

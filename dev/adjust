@@ -15,10 +15,10 @@ harness = {
     "name": "canary",  # ${workflow.variables.name}
     "buildNo": "200",  # ${artifact.buildNo}
     "service": "web-canary-deployment",  # ${service.name}
-    "token": config['adjust']['token'],
-    "accountId": config['harness']['accountId'],
+    "token": config['harness']['adjust_token'],
+    "accountId": config['harness']['account_id'],
     "application": config['harness']['application'],
-    "apiKey": config['harness']['apiKey'],
+    "apiKey": config['harness']['api_key'],
 }
 
 url = f"https://app.harness.io/gateway/api/webhooks/{harness['token']}?accountId={harness['accountId']}"
