@@ -31,6 +31,14 @@ config_path = os.environ.get('OPTUNE_CONFIG', './config.yaml')
 
 GQL_API_URL = "https://app.harness.io/gateway/api/graphql"
 
+query_application_id = """
+query {
+  applicationByName(name:"{}"){
+    id
+  }
+}
+"""
+
 query_canary_workflow_id = """
 query {
   workflowByName(applicationId:"{}",workflowName:"Opsani Rolling"){
@@ -135,7 +143,7 @@ class HarnessDriver(Adjust):
 
         h = c['harness']
         assert h.get('account_id'), 'No account_id was included in harness configuration located at {}'.format(config_path)
-        assert h.get('application'), 'No application was included in harness configuration located at {}'.format(config_path)
+        assert h.get('application_name'), 'No application_name was included in harness configuration located at {}'.format(config_path)
         assert h.get('infradefinition_ecs'), 'No infradefinition_ecs was included in harness configuration located at {}'.format(config_path)
         assert h.get('service'), 'No service was included in harness configuration located at {}'.format(config_path)
         assert h.get('artifact_source_name'), 'No artifact_source_name was included in harness configuration located at {}'.format(config_path)
@@ -250,7 +258,14 @@ class HarnessDriver(Adjust):
             cpu_val = canary_settings['cpu']['value'] * 1024 # convert vCPU to cpu units
             mem_val = canary_settings['mem']['value'] * 1024 # convert GiB to MiB
 
-        response = post_gql_query(query_payload=query_canary_workflow_id.format(self.config["application"]))
+        response = post_gql_query(query_payload=query_application_id.format(self.config["application_name"]))
+        if not response.ok:
+            raise AdjustError('Unable to get harness application id. Status code {}. Data {}'.format(response.status_code, response.text))
+        app_id = response.json().get('data', {}).get('applicationByName', {}).get('id')
+        if app_id is None:
+            raise AdjustError('Unable to parse harness application id from response json. Data: {}'.format(response.json()))
+
+        response = post_gql_query(query_payload=query_canary_workflow_id.format(app_id))
         if not response.ok:
             raise AdjustError('Unable to get canary harness workflow id. Status code {}. Data {}'.format(response.status_code, response.text))
         workflow_id = response.json().get('data', {}).get('workflowByName', {}).get('id')
@@ -261,7 +276,7 @@ class HarnessDriver(Adjust):
         self.print_progress()
 
         response = post_gql_query(query_payload=adjust_mutation.format(
-            applicationId=self.config["application"],
+            applicationId=app_id,
             entityId=workflow_id,
             InfraDefinition_ECS=self.config["infradefinition_ecs"],
             Service=self.config["service"],
