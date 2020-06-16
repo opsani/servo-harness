@@ -243,6 +243,7 @@ class HarnessDriver(Adjust):
             harness_api_key = auth_file.read().strip()
 
         session = requests.Session()
+        session.verify = self.config.get('ssl_verify', True)
         session.headers = {
             "X-API-KEY": harness_api_key,
             "content-type": "application/json",

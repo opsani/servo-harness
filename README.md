@@ -30,6 +30,7 @@ harness:
   opsani_token: hhhh # REQUIRED. Optune auth token
   target_platform: k8s # REQUIRED. Either 'ecs' or 'k8s'
   adjust_timeout: 3600 # OPTIONAL. How long to wait for workflow to be in SUCCESS or FAILED status
+  ssl_verify: True # OPTIONAL. Set to False to disable verification of graphql API ssl verification
 ```
 
 ## How to run tests
