@@ -26,6 +26,7 @@ harness: # NOTE: if OPTUNE_USE_DRIVER_NAME is truthy, the name of the connector 
   adjust_on: canary # OPTIONAL. when specified, the input data control.userdata.deploy_to must match the value configured here
   account_id: aaaa # REQUIRED. Id of harness account
   application_name: bbbb # REQUIRED. Id of the harness application
+  graphql_url: cccc # REQUIRED. URL of harness graphql API
   artifact_source_name: dddd # REQUIRED. Name of Artifact to be deployed
   infradefinition_ecs: eeee # REQUIRED. Name of Harness infradefinition_ecs
   opsani_account: ffff # REQUIRED. Optune account name
