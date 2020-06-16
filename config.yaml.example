@@ -26,6 +26,7 @@ harness:
       default: 0.5 # Returned as value when OCO userdata does not contain value for cpu
   account_id: aaaa # REQUIRED. Id of harness account
   application_name: bbbb # REQUIRED. Id of the harness application
+  graphql_url: cccc # REQUIRED. URL of harness graphql API
   artifact_source_name: dddd # REQUIRED. Name of Artifact to be deployed
   infradefinition_ecs: eeee # REQUIRED. Name of Harness infradefinition_ecs
   opsani_account: ffff # REQUIRED. Optune account name

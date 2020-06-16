@@ -21,6 +21,7 @@ harness:
       default: 0.5 # Returned as value when OCO userdata does not contain value for cpu
   account_id: aaaa # REQUIRED. Id of harness account
   application: bbbb # REQUIRED. Id of the harness application
+  graphql_url: cccc # REQUIRED. URL of harness graphql API
   api_key: cccc # REQUIRED. X-API-KEY for authentication during retrieval of workflow status
   adjust_token: dddd # REQUIRED. Webhook event token for adjustment of canary settings
   promote_token: eeee # NOT IMPLEMENTED YET. Webhook event token for promotion of settings
