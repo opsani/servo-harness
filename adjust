@@ -39,7 +39,7 @@ query {{
 
 query_canary_workflow_id = """
 query {{
-  workflowByName(applicationId:"{}",workflowName:"Opsani Rolling"){{
+  workflowByName(applicationId:"{}",workflowName:"opsani-servo-deploy"){{
     id
 	  name
   }}
