@@ -63,12 +63,12 @@ query {{
 """
 
 query_mainline_pipeline_id = """
-query {
-  pipelineByName(applicationId:"{}",pipelineName:"Opsani Promotion"){
+query {{
+  pipelineByName(applicationId:"{}",pipelineName:"Opsani Promotion"){{
     id
 	  name
-  }
-}
+  }}
+}}
 """
 
 query_execution_status = """
@@ -148,35 +148,35 @@ mutation {{
 """
 
 mainline_adjust_mutation = """
-mutation {
-  startExecution(input: {
+mutation {{
+  startExecution(input: {{
     applicationId: "{applicationId}"
     entityId: "{entityId}"
     executionType: PIPELINE,
     variableInputs: [
-      {
+      {{
         name: "cpu"
-        variableValue: {
+        variableValue: {{
           type: NAME
           value: "{cpu}"
-        }
-      },
-      {
+        }}
+      }},
+      {{
         name: "mem"
-        variableValue: {
+        variableValue: {{
           type: NAME
           value: "{mem}"
-        }
-      }
+        }}
+      }}
     ]
     notes: "Triggered by Opsani Engine",
-  }) {
+  }}) {{
     warningMessage
-    execution{
+    execution{{
       id
-    }
-  }
-}
+    }}
+  }}
+}}
 """
 
 class HarnessDriver(Adjust):
