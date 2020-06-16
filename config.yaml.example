@@ -35,3 +35,4 @@ harness: # NOTE: if OPTUNE_USE_DRIVER_NAME is truthy, the name of the connector 
   target_platform: k8s # REQUIRED. Either 'ecs' or 'k8s'
   adjust_timeout: 3600 # OPTIONAL. How long to wait for workflow to be in SUCCESS or FAILED status
   service: hhhh # REQUIRED Name of Harness service
+  ssl_verify: True # OPTIONAL. Set to False to disable verification of graphql API ssl verification
