@@ -29,98 +29,96 @@ DEFAULT_ADJUST_TIMEOUT=3600
 
 config_path = os.environ.get('OPTUNE_CONFIG', './config.yaml')
 
-GQL_API_URL = "https://app.harness.io/gateway/api/graphql"
-
 query_application_id = """
-query {
-  applicationByName(name:"{}"){
+query {{
+  applicationByName(name:"{}"){{
     id
-  }
-}
+  }}
+}}
 """
 
 query_canary_workflow_id = """
-query {
-  workflowByName(applicationId:"{}",workflowName:"Opsani Rolling"){
+query {{
+  workflowByName(applicationId:"{}",workflowName:"Opsani Rolling"){{
     id
 	  name
-  }
-}
+  }}
+}}
 """
 
 query_execution_status = """
-query {
-  execution(executionId: "{}") {
+query {{
+  execution(executionId: "{}") {{
     createdAt
     startedAt
     endedAt
     notes
     status
-  }
-}
+  }}
+}}
 """
 
 adjust_mutation = """
-mutation {
-  startExecution(input: {
+mutation {{
+  startExecution(input: {{
     applicationId: "{applicationId}"
     entityId: "{entityId}"
     executionType: WORKFLOW,
     variableInputs: [
-      {
+      {{
         name: "name"
-        variableValue: {
+        variableValue: {{
           type: NAME
           value: "canary"
-        }
-      },
-      {
+        }}
+      }},
+      {{
         name: "cpu"
-        variableValue: {
+        variableValue: {{
           type: NAME
           value: "{cpu}"
-        }
-      },
-      {
+        }}
+      }},
+      {{
         name: "mem"
-        variableValue: {
+        variableValue: {{
           type: NAME
           value: "{mem}"
-        }
-      },
-      {
+        }}
+      }},
+      {{
         name: "InfraDefinition_ECS"
-        variableValue: {
+        variableValue: {{
           type: NAME
           value: "{InfraDefinition_ECS}"
-        }
-      },
-      {
+        }}
+      }},
+      {{
         name: "Service"
-        variableValue: {
+        variableValue: {{
           type: NAME
           value: "{Service}"
-        }
-      }
+        }}
+      }}
     ]
-    serviceInputs: [ {
+    serviceInputs: [ {{
       name: "web-canary",
-      artifactValueInput: {
+      artifactValueInput: {{
         valueType: BUILD_NUMBER
-        buildNumber: {
+        buildNumber: {{
           buildNumber: "latest"
           artifactSourceName: "{artifactSourceName}"
-        }
-      }
-    }
+        }}
+      }}
+    }}
     ]
     notes: "Triggered by Opsani Engine",
-  }) {
+  }}) {{
     warningMessage
-    execution{
+    execution{{
       id
-    }
-  }
+    }}
+  }}
 }
 """
 
@@ -144,6 +142,7 @@ class HarnessDriver(Adjust):
         h = c['harness']
         assert h.get('account_id'), 'No account_id was included in harness configuration located at {}'.format(config_path)
         assert h.get('application_name'), 'No application_name was included in harness configuration located at {}'.format(config_path)
+        assert h.get('graphql_url'), 'No graphql_url was included in harness configuration located at {}'.format(config_path)
         assert h.get('infradefinition_ecs'), 'No infradefinition_ecs was included in harness configuration located at {}'.format(config_path)
         assert h.get('service'), 'No service was included in harness configuration located at {}'.format(config_path)
         assert h.get('artifact_source_name'), 'No artifact_source_name was included in harness configuration located at {}'.format(config_path)
@@ -249,7 +248,7 @@ class HarnessDriver(Adjust):
             "content-type": "application/json",
         }
         session.params = { 'accountId': self.config['account_id'] }
-        post_gql_query = lambda query_payload: session.post(url=GQL_API_URL, json={'query': query_payload })
+        post_gql_query = lambda query_payload: session.post(url=self.config['graphql_url'], json={'query': query_payload })
 
         if self.config['target_platform'] == 'k8s':
             cpu_val = canary_settings['cpu']['value']
