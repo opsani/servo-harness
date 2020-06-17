@@ -102,7 +102,7 @@ mutation {{
       }}
     ]
     serviceInputs: [ {{
-      name: "web-canary",
+      name: "opsani-service",
       artifactValueInput: {{
         valueType: BUILD_NUMBER
         buildNumber: {{
