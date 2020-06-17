@@ -259,14 +259,14 @@ class HarnessDriver(Adjust):
             mem_val = canary_settings['mem']['value'] * 1024 # convert GiB to MiB
 
         response = post_gql_query(query_payload=query_application_id.format(self.config["application_name"]))
-        if not response.ok:
+        if not response.ok or response.json().get('errors'):
             raise AdjustError('Unable to get harness application id. Status code {}. Data {}'.format(response.status_code, response.text))
         app_id = response.json().get('data', {}).get('applicationByName', {}).get('id')
         if app_id is None:
             raise AdjustError('Unable to parse harness application id from response json. Data: {}'.format(response.json()))
 
         response = post_gql_query(query_payload=query_canary_workflow_id.format(app_id))
-        if not response.ok:
+        if not response.ok or response.json().get('errors'):
             raise AdjustError('Unable to get canary harness workflow id. Status code {}. Data {}'.format(response.status_code, response.text))
         workflow_id = response.json().get('data', {}).get('workflowByName', {}).get('id')
         if workflow_id is None:
@@ -284,7 +284,8 @@ class HarnessDriver(Adjust):
             cpu=cpu_val,
             mem=mem_val
         ))
-        if not response.ok:
+        print(response.text, file=sys.stderr)
+        if not response.ok or response.json().get('errors'):
             raise AdjustError('Unable to trigger canary harness workflow. Status code {}. Data {}'.format(response.status_code, response.text))
 
         se = response.json().get('data', {}).get('startExecution', {})
@@ -299,7 +300,7 @@ class HarnessDriver(Adjust):
         start_time = time.time()
         while True:
             status_response = post_gql_query(query_payload=query_execution_status.format(execution_id))
-            if not status_response.ok:
+            if not status_response.ok or status_response.json().get('errors')::
                 raise AdjustError('Unable to get triggered workflow execution status. Status code {}. Data {}'.format(status_response.status_code, status_response.text))
             
             execution_json = status_response.json().get('data', {}).get('execution')
