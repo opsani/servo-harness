@@ -102,11 +102,11 @@ mutation {{
       }}
     ]
     serviceInputs: [ {{
-      name: "service",
+      name: "{Service}",
       artifactValueInput: {{
         valueType: BUILD_NUMBER
         buildNumber: {{
-          buildNumber: "latest"
+          buildNumber: "12"
           artifactSourceName: "{artifactSourceName}"
         }}
       }}
@@ -272,7 +272,7 @@ class HarnessDriver(Adjust):
         if workflow_id is None:
             raise AdjustError('Unable to parse canary harness workflow id from response json. Data: {}'.format(response.json()))
 
-        self.progress_message = 'Triggering canary worlfow'
+        self.progress_message = 'Triggering canary workflow'
         self.print_progress()
 
         response = post_gql_query(query_payload=adjust_mutation.format(
