@@ -55,7 +55,7 @@ query {{
 
 query_canary_workflow_id = """
 query {{
-  workflowByName(applicationId:"{}",workflowName:"opsani-servo-deploy"){{
+  workflowByName(applicationId:"{}",workflowName:"opsani-canary-deploy"){{
     id
 	  name
   }}
@@ -127,7 +127,7 @@ mutation {{
       }}
     ]
     serviceInputs: [ {{
-      name: "web-canary",
+      name: "service",
       artifactValueInput: {{
         valueType: BUILD_NUMBER
         buildNumber: {{
@@ -321,11 +321,11 @@ class HarnessDriver(Adjust):
             cpu_val = canary_settings['cpu']['value']
             mem_val = '{}Gi'.format(canary_settings['mem']['value'])
         elif self.config['target_platform'] == 'ecs':
-            cpu_val = canary_settings['cpu']['value'] * 1024 # convert vCPU to cpu units
-            mem_val = canary_settings['mem']['value'] * 1024 # convert GiB to MiB
+            cpu_val = str(int(canary_settings['cpu']['value'] * 1024)) # convert vCPU to cpu units
+            mem_val = str(int(canary_settings['mem']['value'] * 1024)) # convert GiB to MiB
 
         response = post_gql_query(query_payload=query_application_id.format(self.config["application_name"]))
-        if not response.ok:
+        if not response.ok or response.json().get('errors'):
             raise AdjustError('Unable to get harness application id. Status code {}. Data {}'.format(response.status_code, response.text))
         app_id = response.json().get('data', {}).get('applicationByName', {}).get('id')
         if app_id is None:
@@ -333,7 +333,7 @@ class HarnessDriver(Adjust):
 
         if canary_settings:
             response = post_gql_query(query_payload=query_canary_workflow_id.format(app_id))
-            if not response.ok:
+            if not response.ok or response.json().get('errors'):
                 raise AdjustError('Unable to get canary harness workflow id. Status code {}. Data {}'.format(response.status_code, response.text))
             workflow_id = response.json().get('data', {}).get('workflowByName', {}).get('id')
             if workflow_id is None:
@@ -351,7 +351,7 @@ class HarnessDriver(Adjust):
                 cpu=cpu_val,
                 mem=mem_val
             ))
-            if not response.ok:
+            if not response.ok or response.json().get('errors'):
                 raise AdjustError('Unable to trigger canary harness workflow. Status code {}. Data {}'.format(response.status_code, response.text))
 
             se = response.json().get('data', {}).get('startExecution', {})
@@ -366,7 +366,7 @@ class HarnessDriver(Adjust):
             start_time = time.time()
             while True:
                 status_response = post_gql_query(query_payload=query_execution_status.format(execution_id))
-                if not status_response.ok:
+                if not status_response.ok or status_response.json().get('errors'):
                     raise AdjustError('Unable to get triggered workflow execution status. Status code {}. Data {}'.format(status_response.status_code, status_response.text))
                 
                 execution_json = status_response.json().get('data', {}).get('execution')
@@ -386,7 +386,7 @@ class HarnessDriver(Adjust):
         
         if mainline_settings:
             response = post_gql_query(query_payload=query_mainline_pipeline_id.format(app_id))
-            if not response.ok:
+            if not response.ok or response.json().get('errors'):
                 raise AdjustError('Unable to get mainline harness pipeline id. Status code {}. Data {}'.format(response.status_code, response.text))
             pipeline_id = response.json().get('data', {}).get('pipelineByName', {}).get('id')
             if pipeline_id is None:
@@ -401,7 +401,7 @@ class HarnessDriver(Adjust):
                 cpu=cpu_val,
                 mem=mem_val
             ))
-            if not response.ok:
+            if not response.ok or response.json().get('errors'):
                 raise AdjustError('Unable to trigger mainline harness workflow. Status code {}. Data {}'.format(response.status_code, response.text))
 
             se = response.json().get('data', {}).get('startExecution', {})
@@ -416,7 +416,7 @@ class HarnessDriver(Adjust):
             time.sleep(30)
 
             status_response = post_gql_query(query_payload=query_execution_status.format(execution_id))
-            if not status_response.ok:
+            if not status_response.ok or status_response.json().get('errors'):
                 raise AdjustError('Unable to get triggered workflow execution status. Status code {}. Data {}'.format(status_response.status_code, status_response.text))
             
             execution_json = status_response.json().get('data', {}).get('execution')
