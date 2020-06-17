@@ -284,7 +284,6 @@ class HarnessDriver(Adjust):
             cpu=cpu_val,
             mem=mem_val
         ))
-        print(response.text, file=sys.stderr)
         if not response.ok or response.json().get('errors'):
             raise AdjustError('Unable to trigger canary harness workflow. Status code {}. Data {}'.format(response.status_code, response.text))
 
