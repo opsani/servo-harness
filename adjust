@@ -39,7 +39,7 @@ query {{
 
 query_canary_workflow_id = """
 query {{
-  workflowByName(applicationId:"{}",workflowName:"opsani-servo-deploy"){{
+  workflowByName(applicationId:"{}",workflowName:"opsani-canary-deploy"){{
     id
 	  name
   }}
@@ -102,7 +102,7 @@ mutation {{
       }}
     ]
     serviceInputs: [ {{
-      name: "opsani-service",
+      name: "service",
       artifactValueInput: {{
         valueType: BUILD_NUMBER
         buildNumber: {{
