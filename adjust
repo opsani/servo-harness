@@ -119,7 +119,7 @@ mutation {{
       id
     }}
   }}
-}
+}}
 """
 
 class HarnessDriver(Adjust):
