@@ -255,8 +255,8 @@ class HarnessDriver(Adjust):
             cpu_val = canary_settings['cpu']['value']
             mem_val = '{}Gi'.format(canary_settings['mem']['value'])
         elif self.config['target_platform'] == 'ecs':
-            cpu_val = canary_settings['cpu']['value'] * 1024 # convert vCPU to cpu units
-            mem_val = canary_settings['mem']['value'] * 1024 # convert GiB to MiB
+            cpu_val = str(int(canary_settings['cpu']['value'] * 1024)) # convert vCPU to cpu units
+            mem_val = str(int(canary_settings['mem']['value'] * 1024)) # convert GiB to MiB
 
         response = post_gql_query(query_payload=query_application_id.format(self.config["application_name"]))
         if not response.ok or response.json().get('errors'):
