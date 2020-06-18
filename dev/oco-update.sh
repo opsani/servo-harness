@@ -1,17 +1,11 @@
 #!/bin/bash 
 set -e
 
-APP='harness-dev'
-ACCOUNT='dev.opsani.com'
-TOKEN='${secrets.getValue("CO_TOKEN")}'
+OPSANI_APP='golden-opsani-v1'
+OPSANI_ACCOUNT='ancestry.com'
+OPSANI_TOKEN='c25609faf7257b2af7caa2e746cf16b7689228dd12b86b013554be'
 
-URL='https://api.opsani.com/accounts/$ACCOUNT/applications/$APP/config/'
-
-CPU='${workflow.variables.cpu}'
-MEM='${workflow.variables.mem}'
-
-curl -X PUT \
-    -H 'Content-type: application/merge-patch+json' \
-    -H 'Authorization: Bearer '${TOKEN}'' \
-    'https://api.optune.ai/accounts/'${ACCOUNT}'/applications/'${APP}'/config?reset=false&patch=true' \
-    -d '{"adjustment": {"control": {"userdata": {"${workflow.variables.name}": {"cpu": "'$CPU'", "mem": "'$MEM'"}}}}}'
+curl -X PUT \#    -H 'Content-type: application/json' \
+    -H 'Authorization: Bearer '${OPSANI_TOKEN}'' \
+    'https://api.opsani.com/accounts/'${OPSANI_ACCOUNT}'/applications/'${OPSANI_APP}'/config?reset=false&patch=true' \
+    -d '{"adjustment": {"control": {"userdata": {"${workflow.variables.name}": {"cpu": ${workflow.variables.cpu}, "mem": ${workflow.variables.mem}}}}}}'
