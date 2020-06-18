@@ -16,7 +16,7 @@ HAS_CANCEL = False
 DEFAULTS = {
     'mem': {
         'min': 0.125, # GiB
-        'max': 4, # GiB
+        'max': 16, # GiB
         'step': 0.125 # GiB
     },
     'cpu': {
