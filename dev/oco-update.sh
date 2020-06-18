@@ -13,6 +13,5 @@ MEM='${workflow.variables.mem}'
 curl -X PUT \
     -H 'Content-type: application/merge-patch+json' \
     -H 'Authorization: Bearer '${TOKEN}'' \
-    'https://api.optune.ai/accounts/'${ACCOUNT}'/applications/'${APP}'/config?patch=true' \
+    'https://api.optune.ai/accounts/'${ACCOUNT}'/applications/'${APP}'/config?reset=false&patch=true' \
     -d '{"adjustment": {"control": {"userdata": {"${workflow.variables.name}": {"cpu": "'$CPU'", "mem": "'$MEM'"}}}}}'
-
