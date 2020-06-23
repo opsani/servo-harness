@@ -17,7 +17,7 @@ DEFAULTS = {
     'k8s': {    
         'mem': {
             'min': 0.125, # GiB
-            'max': 4, # GiB
+            'max': 16, # GiB
             'step': 0.125 # GiB
         },
         'cpu': {
@@ -127,11 +127,11 @@ mutation {{
       }}
     ]
     serviceInputs: [ {{
-      name: "service",
+      name: "{Service}",
       artifactValueInput: {{
         valueType: BUILD_NUMBER
         buildNumber: {{
-          buildNumber: "latest"
+          buildNumber: "12"
           artifactSourceName: "{artifactSourceName}"
         }}
       }}
@@ -392,7 +392,7 @@ class HarnessDriver(Adjust):
             if pipeline_id is None:
                 raise AdjustError('Unable to parse mainline harness pipeline id from response json. Data: {}'.format(response.json()))
 
-            self.progress_message = 'Triggering mainline worlfow'
+            self.progress_message = 'Triggering mainline workflow'
             self.print_progress()
 
             response = post_gql_query(query_payload=mainline_adjust_mutation.format(
