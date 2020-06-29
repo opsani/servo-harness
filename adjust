@@ -317,13 +317,6 @@ class HarnessDriver(Adjust):
         session.params = { 'accountId': self.config['account_id'] }
         post_gql_query = lambda query_payload: session.post(url=self.config['graphql_url'], json={'query': query_payload })
 
-        if self.config['target_platform'] == 'k8s':
-            cpu_val = canary_settings['cpu']['value']
-            mem_val = '{}Gi'.format(canary_settings['mem']['value'])
-        elif self.config['target_platform'] == 'ecs':
-            cpu_val = str(int(canary_settings['cpu']['value'] * 1024)) # convert vCPU to cpu units
-            mem_val = str(int(canary_settings['mem']['value'] * 1024)) # convert GiB to MiB
-
         response = post_gql_query(query_payload=query_application_id.format(self.config["application_name"]))
         if not response.ok or response.json().get('errors'):
             raise AdjustError('Unable to get harness application id. Status code {}. Data {}'.format(response.status_code, response.text))
@@ -332,6 +325,13 @@ class HarnessDriver(Adjust):
             raise AdjustError('Unable to parse harness application id from response json. Data: {}'.format(response.json()))
 
         if canary_settings:
+            if self.config['target_platform'] == 'k8s':
+                cpu_val = canary_settings['cpu']['value']
+                mem_val = '{}Gi'.format(canary_settings['mem']['value'])
+            elif self.config['target_platform'] == 'ecs':
+                cpu_val = str(int(canary_settings['cpu']['value'] * 1024)) # convert vCPU to cpu units
+                mem_val = str(int(canary_settings['mem']['value'] * 1024)) # convert GiB to MiB
+
             response = post_gql_query(query_payload=query_canary_workflow_id.format(app_id))
             if not response.ok or response.json().get('errors'):
                 raise AdjustError('Unable to get canary harness workflow id. Status code {}. Data {}'.format(response.status_code, response.text))
@@ -385,6 +385,13 @@ class HarnessDriver(Adjust):
                 time.sleep(30)
         
         if mainline_settings:
+            if self.config['target_platform'] == 'k8s':
+                cpu_val = mainline_settings['cpu']['value']
+                mem_val = '{}Gi'.format(mainline_settings['mem']['value'])
+            elif self.config['target_platform'] == 'ecs':
+                cpu_val = str(int(mainline_settings['cpu']['value'] * 1024)) # convert vCPU to cpu units
+                mem_val = str(int(mainline_settings['mem']['value'] * 1024)) # convert GiB to MiB
+
             response = post_gql_query(query_payload=query_mainline_pipeline_id.format(app_id))
             if not response.ok or response.json().get('errors'):
                 raise AdjustError('Unable to get mainline harness pipeline id. Status code {}. Data {}'.format(response.status_code, response.text))
@@ -425,7 +432,7 @@ class HarnessDriver(Adjust):
 
             if execution_json['status'] == 'FAILED':
                 raise AdjustError('Triggered mainline workflow finished with FAILED status: {}'.format(execution_json))
-
+        
 def cpuunits(s) -> float:
     '''convert a string for CPU resource (with optional unit suffix) into a number'''
     if s[-1] == "m": # there are no units other than 'm' (millicpu)
