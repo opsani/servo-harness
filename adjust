@@ -14,20 +14,36 @@ VERSION = "0.0.1"
 HAS_CANCEL = False
 
 DEFAULTS = {
-    'mem': {
-        'min': 0.125, # GiB
-        'max': 16, # GiB
-        'step': 0.125 # GiB
+    'k8s': {    
+        'mem': {
+            'min': 0.125, # GiB
+            'max': 16, # GiB
+            'step': 0.125 # GiB
+        },
+        'cpu': {
+            'min': 0.125, # cores
+            'max': 4, # cores
+            'step': 0.125 # cores
+        }
     },
-    'cpu': {
-        'min': 0.125, # cores
-        'max': 4, # cores
-        'step': 0.125 # cores
+    'ecs': {    
+        'mem': {
+            'min': 0.25, # GiB
+            'max': 4, # GiB
+            'step': 0.25 # GiB
+        },
+        'cpu': {
+            'min': 0.25, # vCPU
+            'max': 4, # vCPU
+            'step': 0.25 # vCPU
+        }
     }
 }
+
 DEFAULT_ADJUST_TIMEOUT=3600
 
 config_path = os.environ.get('OPTUNE_CONFIG', './config.yaml')
+config_name = os.path.basename(__file__) if os.environ.get('OPTUNE_USE_DRIVER_NAME') else 'harness'
 
 query_application_id = """
 query {{
@@ -46,6 +62,15 @@ query {{
 }}
 """
 
+query_mainline_pipeline_id = """
+query {{
+  pipelineByName(applicationId:"{}",pipelineName:"Opsani Promotion"){{
+    id
+	  name
+  }}
+}}
+"""
+
 query_execution_status = """
 query {{
   execution(executionId: "{}") {{
@@ -58,7 +83,7 @@ query {{
 }}
 """
 
-adjust_mutation = """
+canary_adjust_mutation = """
 mutation {{
   startExecution(input: {{
     applicationId: "{applicationId}"
@@ -122,6 +147,38 @@ mutation {{
 }}
 """
 
+mainline_adjust_mutation = """
+mutation {{
+  startExecution(input: {{
+    applicationId: "{applicationId}"
+    entityId: "{entityId}"
+    executionType: PIPELINE,
+    variableInputs: [
+      {{
+        name: "cpu"
+        variableValue: {{
+          type: NAME
+          value: "{cpu}"
+        }}
+      }},
+      {{
+        name: "mem"
+        variableValue: {{
+          type: NAME
+          value: "{mem}"
+        }}
+      }}
+    ]
+    notes: "Triggered by Opsani Engine",
+  }}) {{
+    warningMessage
+    execution{{
+      id
+    }}
+  }}
+}}
+"""
+
 class HarnessDriver(Adjust):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -136,10 +193,10 @@ class HarnessDriver(Adjust):
             raise Exception('Could not parse config file located at "{}". '
                             'Please check its contents. Error: {}'.format(config_path, str(e)))
 
-        assert c and c.get('harness', None), 'Harness Servo Configuration was not provided in "{}". ' \
-                                        'Please refer to README.md'.format(config_path)
+        assert c and c.get(config_name, None), 'Harness Servo Configuration named {} was not provided in "{}". ' \
+                                        'Please refer to README.md'.format(config_name, config_path)
 
-        h = c['harness']
+        h = c[config_name]
         assert h.get('account_id'), 'No account_id was included in harness configuration located at {}'.format(config_path)
         assert h.get('application_name'), 'No application_name was included in harness configuration located at {}'.format(config_path)
         assert h.get('graphql_url'), 'No graphql_url was included in harness configuration located at {}'.format(config_path)
@@ -152,47 +209,50 @@ class HarnessDriver(Adjust):
         assert h['target_platform'] in ['k8s', 'ecs'], 'Specified target_platform {} is not supported (in config located at{}). Supported values are "ecs" and "k8s"'\
             ''.format(h['target_platform'], config_path)
 
+        defaults = DEFAULTS[h['target_platform']]
+
         bad_keys = h.get('settings', {}).keys() - {'cpu', 'mem'}
         assert len(bad_keys) < 1, "harness settings config (located at {}) was malformed, contained unknown setting key(s) {}".format(config_path, ', '.join(bad_keys))
 
         for k,v in h.get('settings', {}).items():
             bad_keys = v.keys() - {'min', 'max', 'step', 'default'}
             assert len(bad_keys) < 1, "range setting {} config was malformed, contained unknown key(s) {}".format(k, ', '.join(bad_keys))
-            assert isinstance(v.get('min', DEFAULTS[k]['min']), (int, float)), 'range setting {} config was malformed; min must be a number. Found {}.'.format(k, v.get('min'))
-            assert isinstance(v.get('max', DEFAULTS[k]['max']), (int, float)), 'range setting {} config was malformed; max must be a number. Found {}.'.format(k, v.get('max'))
-            assert isinstance(v.get('step', DEFAULTS[k]['step']), (int, float)), 'range setting {} config was malformed; step must be a number. Found {}.'.format(k, v.get('step'))
+            assert isinstance(v.get('min', defaults[k]['min']), (int, float)), 'range setting {} config was malformed; min must be a number. Found {}.'.format(k, v.get('min'))
+            assert isinstance(v.get('max', defaults[k]['max']), (int, float)), 'range setting {} config was malformed; max must be a number. Found {}.'.format(k, v.get('max'))
+            assert isinstance(v.get('step', defaults[k]['step']), (int, float)), 'range setting {} config was malformed; step must be a number. Found {}.'.format(k, v.get('step'))
             # TODO: require default for settings?
             assert isinstance(v.get('default', 0), (int, float)), 'range setting {} config was malformed; default must be a number. Found {}.'.format(k, v.get('default'))
                 
-            assert v.get('min', DEFAULTS[k]['min']) <= v.get('max', DEFAULTS[k]['max']), \
+            assert v.get('min', defaults[k]['min']) <= v.get('max', defaults[k]['max']), \
                 'range setting {} config was malformed; supplied/default min ({}) is higher than supplied/default max ({})'\
-                    ''.format(k, v.get('min', DEFAULTS[k]['min']), v.get('max', DEFAULTS[k]['max']))
+                    ''.format(k, v.get('min', defaults[k]['min']), v.get('max', defaults[k]['max']))
 
-            if v.get('min', DEFAULTS[k]['min']) != v.get('max', DEFAULTS[k]['max']):
-                assert v.get('step', DEFAULTS[k]['step']) != 0, 'range setting {} config was malformed; step cannot be zero when min != max.'.format(k)
-                assert v.get('step', DEFAULTS[k]['step']) > 0, 'range setting {} config was malformed; step must be a positive number.'.format(k)
+            if v.get('min', defaults[k]['min']) != v.get('max', defaults[k]['max']):
+                assert v.get('step', defaults[k]['step']) != 0, 'range setting {} config was malformed; step cannot be zero when min != max.'.format(k)
+                assert v.get('step', defaults[k]['step']) > 0, 'range setting {} config was malformed; step must be a positive number.'.format(k)
 
-                c = (v.get('max', DEFAULTS[k]['max']) - v.get('min', DEFAULTS[k]['min'])) / float(v.get('step', DEFAULTS[k]['step']))
+                c = (v.get('max', defaults[k]['max']) - v.get('min', defaults[k]['min'])) / float(v.get('step', defaults[k]['step']))
                 assert math.isclose(c, round(c, 0), abs_tol = 1/1024), 'range setting {} config was malformed; step value must allow to get from {} to {} in equal steps of {}.'\
-                    ''.format(k, v.get('min', DEFAULTS[k]['min']), v.get('max', DEFAULTS[k]['max']), v.get('step', DEFAULTS[k]['step']))
+                    ''.format(k, v.get('min', defaults[k]['min']), v.get('max', defaults[k]['max']), v.get('step', defaults[k]['step']))
 
         self.config = h
 
     def query(self):
+        defaults = DEFAULTS[self.config['target_platform']]
         settings = {
             'cpu': {
                 'type': 'range',
                 'unit': 'cores' if self.config['target_platform'] == 'k8s' else 'vCPU',
-                'min': self.config.get('settings', {}).get('cpu', {}).get('min', DEFAULTS['cpu']['min']),
-                'max': self.config.get('settings', {}).get('cpu', {}).get('max', DEFAULTS['cpu']['max']),
-                'step': self.config.get('settings', {}).get('cpu', {}).get('step', DEFAULTS['cpu']['step'])
+                'min': self.config.get('settings', {}).get('cpu', {}).get('min', defaults['cpu']['min']),
+                'max': self.config.get('settings', {}).get('cpu', {}).get('max', defaults['cpu']['max']),
+                'step': self.config.get('settings', {}).get('cpu', {}).get('step', defaults['cpu']['step'])
             },
             'mem': {
                 'type': 'range',
                 'unit': 'GiB',
-                'min': self.config.get('settings', {}).get('mem', {}).get('min', DEFAULTS['mem']['min']), 
-                'max': self.config.get('settings', {}).get('mem', {}).get('max', DEFAULTS['mem']['max']), 
-                'step': self.config.get('settings', {}).get('mem', {}).get('step', DEFAULTS['mem']['step'])
+                'min': self.config.get('settings', {}).get('mem', {}).get('min', defaults['mem']['min']), 
+                'max': self.config.get('settings', {}).get('mem', {}).get('max', defaults['mem']['max']), 
+                'step': self.config.get('settings', {}).get('mem', {}).get('step', defaults['mem']['step'])
             }
         }
 
@@ -212,32 +272,38 @@ class HarnessDriver(Adjust):
             raise AdjustError('Unable to query OCO config. Status code {}. Data {}'.format(response.status_code, response.text))
 
         opsani_config = response.json()
-        canary = opsani_config.get('adjustment', {}).get('control', {}).get('userdata', {}).get('canary')
 
-        if canary and canary.get('cpu'):
+        comp_key = 'canary' if config_name == 'harness' else config_name
+        opsani_config_settings = opsani_config.get('adjustment', {}).get('control', {}).get('userdata', {}).get(comp_key)
+
+        if opsani_config_settings and opsani_config_settings.get('cpu'):
             if self.config['target_platform'] == 'k8s':
-                settings['cpu']['value'] = cpuunits(canary['cpu'])
+                settings['cpu']['value'] = cpuunits(opsani_config_settings['cpu'])
             elif self.config['target_platform'] == 'ecs':
-                settings['cpu']['value'] = float(canary['cpu']) / 1024 # convert aws cpu units to vCPU
+                settings['cpu']['value'] = float(opsani_config_settings['cpu']) / 1024 # convert aws cpu units to vCPU
         else:
             # TODO: require default in config validation or implement default values for setting defaults
-            settings['cpu']['value'] = self.config.get('cpu', {}).get('default')
+            settings['cpu']['value'] = float(self.config.get('cpu', {}).get('default'))
         
-        if canary and canary.get('mem'):
+        if opsani_config_settings and opsani_config_settings.get('mem'):
             if self.config['target_platform'] == 'k8s':
-                settings['mem']['value'] = memunits(canary['mem'])
+                settings['mem']['value'] = memunits(opsani_config_settings['mem'])
             elif self.config['target_platform'] == 'ecs':
-                settings['mem']['value'] = float(canary['mem']) / 1024 # convert MiB to GiB
+                settings['mem']['value'] = float(opsani_config_settings['mem']) / 1024 # convert MiB to GiB
         else:
-            settings['mem']['value'] = self.config.get('mem', {}).get('default')
+            settings['mem']['value'] = float(self.config.get('mem', {}).get('default'))
 
-        return { 'application': { 'components': { 'canary': { 'settings': settings } } } }
+        return { 'application': { 'components': { comp_key: { 'settings': settings } } } }
 
     def adjust(self, data):
+        if self.config.get('adjust_on') and data["control"]["userdata"]["deploy_to"] != self.config['adjust_on']:
+            return {"status": "ok", "reason": "Skipped due to 'adjust_on' condition"}
+
         # TODO: promote component
         canary_settings = data['application']['components'].get('canary', {}).get('settings')
-        if not canary_settings:
-            return # Nothing to adjust
+        mainline_settings = data['application']['components'].get('mainline', {}).get('settings')
+        if not canary_settings and not mainline_settings:
+            return {"status": "ok", "reason": "Skipped due to no data"}
 
         with open('/etc/harness-auth/token', 'r') as auth_file:
             harness_api_key = auth_file.read().strip()
@@ -265,39 +331,90 @@ class HarnessDriver(Adjust):
         if app_id is None:
             raise AdjustError('Unable to parse harness application id from response json. Data: {}'.format(response.json()))
 
-        response = post_gql_query(query_payload=query_canary_workflow_id.format(app_id))
-        if not response.ok or response.json().get('errors'):
-            raise AdjustError('Unable to get canary harness workflow id. Status code {}. Data {}'.format(response.status_code, response.text))
-        workflow_id = response.json().get('data', {}).get('workflowByName', {}).get('id')
-        if workflow_id is None:
-            raise AdjustError('Unable to parse canary harness workflow id from response json. Data: {}'.format(response.json()))
+        if canary_settings:
+            response = post_gql_query(query_payload=query_canary_workflow_id.format(app_id))
+            if not response.ok or response.json().get('errors'):
+                raise AdjustError('Unable to get canary harness workflow id. Status code {}. Data {}'.format(response.status_code, response.text))
+            workflow_id = response.json().get('data', {}).get('workflowByName', {}).get('id')
+            if workflow_id is None:
+                raise AdjustError('Unable to parse canary harness workflow id from response json. Data: {}'.format(response.json()))
 
-        self.progress_message = 'Triggering canary workflow'
-        self.print_progress()
+            self.progress_message = 'Triggering canary worlfow'
+            self.print_progress()
 
-        response = post_gql_query(query_payload=adjust_mutation.format(
-            applicationId=app_id,
-            entityId=workflow_id,
-            InfraDefinition_ECS=self.config["infradefinition_ecs"],
-            Service=self.config["service"],
-            artifactSourceName=self.config['artifact_source_name'],
-            cpu=cpu_val,
-            mem=mem_val
-        ))
-        if not response.ok or response.json().get('errors'):
-            raise AdjustError('Unable to trigger canary harness workflow. Status code {}. Data {}'.format(response.status_code, response.text))
+            response = post_gql_query(query_payload=canary_adjust_mutation.format(
+                applicationId=app_id,
+                entityId=workflow_id,
+                InfraDefinition_ECS=self.config["infradefinition_ecs"],
+                Service=self.config["service"],
+                artifactSourceName=self.config['artifact_source_name'],
+                cpu=cpu_val,
+                mem=mem_val
+            ))
+            if not response.ok or response.json().get('errors'):
+                raise AdjustError('Unable to trigger canary harness workflow. Status code {}. Data {}'.format(response.status_code, response.text))
 
-        se = response.json().get('data', {}).get('startExecution', {})
-        execution_id = se.get('execution', {}).get('id')
-        if execution_id is None:
-            raise AdjustError('Failed to parse execution id from workflow trigger response. Response: {}'.format(response.json()))
+            se = response.json().get('data', {}).get('startExecution', {})
+            execution_id = se.get('execution', {}).get('id')
+            if execution_id is None:
+                raise AdjustError('Failed to parse execution id from workflow trigger response. Response: {}'.format(response.json()))
 
-        if se.get('warningMessage'):
-            print('Trigger response contained warning: {}'.format(se['warningMessage']), file=sys.stderr)
+            if se.get('warningMessage'):
+                print('Trigger response contained warning: {}'.format(se['warningMessage']), file=sys.stderr)
 
-        self.progress_message = 'Waiting for workflow status SUCCESS'
-        start_time = time.time()
-        while True:
+            self.progress_message = 'Waiting for workflow status SUCCESS'
+            start_time = time.time()
+            while True:
+                status_response = post_gql_query(query_payload=query_execution_status.format(execution_id))
+                if not status_response.ok or status_response.json().get('errors'):
+                    raise AdjustError('Unable to get triggered workflow execution status. Status code {}. Data {}'.format(status_response.status_code, status_response.text))
+                
+                execution_json = status_response.json().get('data', {}).get('execution')
+                if execution_json is None:
+                    raise AdjustError('Unable to parse triggered workflow execution status. Data {}'.format(status_response.json()))
+
+                if execution_json['status'] == 'SUCCESS':
+                    break
+                if execution_json['status'] == 'FAILED':
+                    raise AdjustError('Triggered workflow finished with FAILED status: {}'.format(execution_json))
+                # else: status == 'RUNNING'
+
+                if time.time() - start_time > self.config.get('adjust_timeout', DEFAULT_ADJUST_TIMEOUT):
+                    raise AdjustError('Timed out waiting for completion of adjustment')
+
+                time.sleep(30)
+        
+        if mainline_settings:
+            response = post_gql_query(query_payload=query_mainline_pipeline_id.format(app_id))
+            if not response.ok or response.json().get('errors'):
+                raise AdjustError('Unable to get mainline harness pipeline id. Status code {}. Data {}'.format(response.status_code, response.text))
+            pipeline_id = response.json().get('data', {}).get('pipelineByName', {}).get('id')
+            if pipeline_id is None:
+                raise AdjustError('Unable to parse mainline harness pipeline id from response json. Data: {}'.format(response.json()))
+
+            self.progress_message = 'Triggering mainline workflow'
+            self.print_progress()
+
+            response = post_gql_query(query_payload=mainline_adjust_mutation.format(
+                applicationId=app_id,
+                entityId=pipeline_id,
+                cpu=cpu_val,
+                mem=mem_val
+            ))
+            if not response.ok or response.json().get('errors'):
+                raise AdjustError('Unable to trigger mainline harness workflow. Status code {}. Data {}'.format(response.status_code, response.text))
+
+            se = response.json().get('data', {}).get('startExecution', {})
+            execution_id = se.get('execution', {}).get('id')
+            if execution_id is None:
+                raise AdjustError('Failed to parse execution id from workflow trigger response. Response: {}'.format(response.json()))
+
+            if se.get('warningMessage'):
+                print('Trigger response contained warning: {}'.format(se['warningMessage']), file=sys.stderr)
+
+            self.progress_message = 'Waiting 30s to check if workflow status is FAILED'
+            time.sleep(30)
+
             status_response = post_gql_query(query_payload=query_execution_status.format(execution_id))
             if not status_response.ok or status_response.json().get('errors'):
                 raise AdjustError('Unable to get triggered workflow execution status. Status code {}. Data {}'.format(status_response.status_code, status_response.text))
@@ -306,18 +423,10 @@ class HarnessDriver(Adjust):
             if execution_json is None:
                 raise AdjustError('Unable to parse triggered workflow execution status. Data {}'.format(status_response.json()))
 
-            if execution_json['status'] == 'SUCCESS':
-                break
             if execution_json['status'] == 'FAILED':
-                raise AdjustError('Triggered workflow finished with FAILED status: {}'.format(execution_json))
-            # else: status == 'RUNNING'
+                raise AdjustError('Triggered mainline workflow finished with FAILED status: {}'.format(execution_json))
 
-            if time.time() - start_time > self.config.get('adjust_timeout', DEFAULT_ADJUST_TIMEOUT):
-                raise AdjustError('Timed out waiting for completion of adjustment')
-
-            time.sleep(30)
-
-def cpuunits(s):
+def cpuunits(s) -> float:
     '''convert a string for CPU resource (with optional unit suffix) into a number'''
     if s[-1] == "m": # there are no units other than 'm' (millicpu)
         return float(s[:-1])/1000.0
@@ -329,7 +438,7 @@ mumap = {"E":1000**6,  "P":1000**5,  "T":1000**4,  "G":1000**3,  "M":1000**2,  "
          "Ei":1024**6, "Pi":1024**5, "Ti":1024**4, "Gi":1024**3, "Mi":1024**2, "Ki":1024}
 Gi = 1024 * 1024 * 1024
 
-def memunits(s):
+def memunits(s) -> float:
     '''convert a string for memory resource (with optional unit suffix) into a number'''
     for u, m in mumap.items():
         if s.endswith(u):

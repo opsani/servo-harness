@@ -4,10 +4,14 @@ Optune servo driver for Harness.io
 
 This driver supports updating the cpu and memory of Kubernetes or Amazon ECS deployments by triggering a harness workflow passing the desired values as parameters. It then monitors the status of the workflow until it reaches the SUCCESS state. If it reaches the FAILED state, an error will be raised.
 
+## Environment Variables
+
+OPTUNE_USE_DRIVER_NAME - When set to true or 1, the connector will use it's own filename to determine which config section to use
+
 ## Config
 
 ```yaml
-harness:
+harness: # NOTE: if OPTUNE_USE_DRIVER_NAME is truthy, the name of the connector file will be used instead, eg "adjust"
   settings: # OPTIONAL. Guard rails for canary adjustment
     mem:
       min: 0.5
@@ -19,17 +23,17 @@ harness:
       max: 1
       step: 0.25
       default: 0.5 # Returned as value when OCO userdata does not contain value for cpu
+  adjust_on: canary # OPTIONAL. when specified, the input data control.userdata.deploy_to must match the value configured here
   account_id: aaaa # REQUIRED. Id of harness account
-  application: bbbb # REQUIRED. Id of the harness application
+  application_name: bbbb # REQUIRED. Id of the harness application
   graphql_url: cccc # REQUIRED. URL of harness graphql API
-  api_key: cccc # REQUIRED. X-API-KEY for authentication during retrieval of workflow status
-  adjust_token: dddd # REQUIRED. Webhook event token for adjustment of canary settings
-  promote_token: eeee # NOT IMPLEMENTED YET. Webhook event token for promotion of settings
+  artifact_source_name: dddd # REQUIRED. Name of Artifact to be deployed
+  infradefinition_ecs: eeee # REQUIRED. Name of Harness infradefinition_ecs
   opsani_account: ffff # REQUIRED. Optune account name
   opsani_app_name: gggg # REQUIRED. Name of application in Optune
-  opsani_token: hhhh # REQUIRED. Optune auth token
   target_platform: k8s # REQUIRED. Either 'ecs' or 'k8s'
   adjust_timeout: 3600 # OPTIONAL. How long to wait for workflow to be in SUCCESS or FAILED status
+  service: hhhh # REQUIRED Name of Harness service
   ssl_verify: True # OPTIONAL. Set to False to disable verification of graphql API ssl verification
 ```
 
