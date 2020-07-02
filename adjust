@@ -432,7 +432,7 @@ class HarnessDriver(Adjust):
 
             if execution_json['status'] == 'FAILED':
                 raise AdjustError('Triggered mainline workflow finished with FAILED status: {}'.format(execution_json))
-        
+
 def cpuunits(s) -> float:
     '''convert a string for CPU resource (with optional unit suffix) into a number'''
     if s[-1] == "m": # there are no units other than 'm' (millicpu)
