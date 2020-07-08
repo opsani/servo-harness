@@ -45,6 +45,8 @@ DEFAULT_ADJUST_TIMEOUT=3600
 config_path = os.environ.get('OPTUNE_CONFIG', './config.yaml')
 config_name = os.path.basename(__file__) if os.environ.get('OPTUNE_USE_DRIVER_NAME') else 'harness'
 
+WEBHOOK_URL_FMT = "https://app.harness.io/gateway/api/webhooks/{}"
+
 query_application_id = """
 query {{
   applicationByName(name:"{}"){{
@@ -197,17 +199,24 @@ class HarnessDriver(Adjust):
                                         'Please refer to README.md'.format(config_name, config_path)
 
         h = c[config_name]
-        assert h.get('account_id'), 'No account_id was included in harness configuration located at {}'.format(config_path)
-        assert h.get('application_name'), 'No application_name was included in harness configuration located at {}'.format(config_path)
-        assert h.get('graphql_url'), 'No graphql_url was included in harness configuration located at {}'.format(config_path)
-        assert h.get('infradefinition_ecs'), 'No infradefinition_ecs was included in harness configuration located at {}'.format(config_path)
-        assert h.get('service'), 'No service was included in harness configuration located at {}'.format(config_path)
-        assert h.get('artifact_source_name'), 'No artifact_source_name was included in harness configuration located at {}'.format(config_path)
         assert h.get('opsani_account'), 'No opsani_account was included in harness configuration located at {}'.format(config_path)
         assert h.get('opsani_app_name'), 'No opsani_app_name was included in harness configuration located at {}'.format(config_path)
         assert h.get('target_platform'), 'No target_platform was included in harness configuration located at {}'.format(config_path)
-        assert h['target_platform'] in ['k8s', 'ecs'], 'Specified target_platform {} is not supported (in config located at{}). Supported values are "ecs" and "k8s"'\
-            ''.format(h['target_platform'], config_path)
+        assert h['target_platform'] in ['k8s', 'ecs'],\
+          'Specified target_platform {} is not supported (in config located at{}). Supported values are "ecs" and "k8s"'.format(h['target_platform'], config_path)
+        assert h.get('target_interface', 'graphql') in ['webhoook', 'graphql'],\
+          'Invalid target_interface specified, only webhook and graphql are supported in config located at {}'.format(config_path)        
+        assert h.get('account_id'), 'No account_id was included in harness configuration located at {}'.format(config_path)
+
+        if h.get('target_interface', 'graphql') == 'graphql':
+          assert h.get('application_name'), 'No application_name was included in harness configuration located at {}'.format(config_path)
+          assert h.get('graphql_url'), 'No graphql_url was included in harness configuration located at {}'.format(config_path)
+          assert h.get('infradefinition_ecs'), 'No infradefinition_ecs was included in harness configuration located at {}'.format(config_path)
+          assert h.get('service'), 'No service was included in harness configuration located at {}'.format(config_path)
+          assert h.get('artifact_source_name'), 'No artifact_source_name was included in harness configuration located at {}'.format(config_path)
+        else:
+          assert h.get('adjust_token'), 'No adjust_token was included in harness configuration located at {}'.format(config_path)
+          assert h.get('promote_token'), 'No promote_token was included in harness configuration located at {}'.format(config_path)
 
         defaults = DEFAULTS[h['target_platform']]
 
@@ -236,6 +245,29 @@ class HarnessDriver(Adjust):
                     ''.format(k, v.get('min', defaults[k]['min']), v.get('max', defaults[k]['max']), v.get('step', defaults[k]['step']))
 
         self.config = h
+
+        with open('/etc/harness-auth/token', 'r') as auth_file:
+            harness_api_key = auth_file.read().strip()
+
+        if h.get('target_interface', 'graphql') == 'graphql':
+            session = requests.Session()
+            session.verify = self.config.get('ssl_verify', True)
+            session.headers = {
+                "X-API-KEY": harness_api_key,
+                "content-type": "application/json",
+            }
+            session.params = { 'accountId': self.config['account_id'] }
+            self.post_gql_query = lambda query_payload: session.post(url=self.config['graphql_url'], json={'query': query_payload })
+        else: # Init webhook sessions
+            self.trigger_session = requests.Session()
+            self.trigger_session.headers = {"content-type": "application/json"}
+            self.trigger_session.params = { 'accountId': self.config['account_id'] }
+            self.status_session = requests.Session()
+            self.status_session.headers = {
+                "X-API-KEY": harness_api_key,
+                "content-type": "application/json",
+            }
+            
 
     def query(self):
         defaults = DEFAULTS[self.config['target_platform']]
@@ -305,19 +337,100 @@ class HarnessDriver(Adjust):
         if not canary_settings and not mainline_settings:
             return {"status": "ok", "reason": "Skipped due to no data"}
 
-        with open('/etc/harness-auth/token', 'r') as auth_file:
-            harness_api_key = auth_file.read().strip()
+        if self.config.get('target_interface', 'graphql') == 'graphql':
+            self._adjust_graphql(canary_settings, mainline_settings)
+        else:
+            self._adjust_webhook(canary_settings, mainline_settings)
+        
+    def _adjust_webhook(self, canary_settings, mainline_settings):
+        if canary_settings:
+            self.progress_message = 'Triggering canary webhook'
+            self.print_progress()
+            if self.config['target_platform'] == 'k8s':
+                cpu_val = canary_settings['cpu']['value']
+                mem_val = '{}Gi'.format(canary_settings['mem']['value'])
+            elif self.config['target_platform'] == 'ecs':
+                cpu_val = str(int(canary_settings['cpu']['value'] * 1024)) # convert vCPU to cpu units
+                mem_val = str(int(canary_settings['mem']['value'] * 1024)) # convert GiB to MiB
+        
+            trigger_json_data = {
+                "application": self.config["application"],
+                "parameters": { "cpu": cpu_val, "mem": mem_val, 'adjust': 'True' },
+            }
+            trigger_url = WEBHOOK_URL_FMT.format(self.config['adjust_token'])
+            response = self.trigger_session.post(url=trigger_url, json=trigger_json_data)
+            if not response.ok:
+                raise AdjustError('Unable to trigger canary harness workflow. Status code {}. Data {}'.format(response.status_code, response.text))
 
-        session = requests.Session()
-        session.verify = self.config.get('ssl_verify', True)
-        session.headers = {
-            "X-API-KEY": harness_api_key,
-            "content-type": "application/json",
-        }
-        session.params = { 'accountId': self.config['account_id'] }
-        post_gql_query = lambda query_payload: session.post(url=self.config['graphql_url'], json={'query': query_payload })
+            trigger_result = response.json()
+            if not trigger_result.get('apiUrl'):
+                raise AdjustError('Canary workflow trigger response contained no status url. Response: {}'.format(response.text))
+            status_url = trigger_result["apiUrl"].replace("https://app.harness.io/api/","https://app.harness.io/gateway/api/")
 
-        response = post_gql_query(query_payload=query_application_id.format(self.config["application_name"]))
+            self.progress_message = 'Waiting for canary workflow status SUCCESS'
+            start_time = time.time()
+            while True:
+                status_response = self.status_session.get(url=status_url)
+                if not status_response.ok:
+                    raise AdjustError('Unable to get triggered canary workflow status. Status code {}. Data {}'.format(status_response.status_code, status_response.text))
+                
+                status_json = status_response.json()
+                if status_json['status'] == 'SUCCESS':
+                    break
+                if status_json['status'] == 'FAILED':
+                    raise AdjustError('Triggered canary workflow finished with FAILED status: {}'.format(status_json))
+                # else: status == 'RUNNING'
+
+                if time.time() - start_time > self.config.get('adjust_timeout', DEFAULT_ADJUST_TIMEOUT):
+                    raise AdjustError('Timed out waiting for completion of canary adjustment')
+
+                time.sleep(30)
+
+        if mainline_settings:
+            self.progress_message = 'Triggering mainline webhook'
+            self.print_progress()
+            if self.config['target_platform'] == 'k8s':
+                cpu_val = mainline_settings['cpu']['value']
+                mem_val = '{}Gi'.format(mainline_settings['mem']['value'])
+            elif self.config['target_platform'] == 'ecs':
+                cpu_val = str(int(mainline_settings['cpu']['value'] * 1024)) # convert vCPU to cpu units
+                mem_val = str(int(mainline_settings['mem']['value'] * 1024)) # convert GiB to MiB
+
+            trigger_json_data = {
+                "application": self.config["application"],
+                "parameters": { "cpu": cpu_val, "mem": mem_val, 'promote': 'True' },
+            }
+            trigger_url = WEBHOOK_URL_FMT.format(self.config['promote_token'])
+            response = self.trigger_session.post(url=trigger_url, json=trigger_json_data)
+            if not response.ok:
+                raise AdjustError('Unable to trigger mainline harness workflow. Status code {}. Data {}'.format(response.status_code, response.text))
+
+            trigger_result = response.json()
+            if not trigger_result.get('apiUrl'):
+                raise AdjustError('Mainline workflow trigger response contained no status url. Response: {}'.format(response.text))
+            status_url = trigger_result["apiUrl"].replace("https://app.harness.io/api/","https://app.harness.io/gateway/api/")
+
+            self.progress_message = 'Waiting for mainline workflow status SUCCESS'
+            start_time = time.time()
+            while True:
+                status_response = self.status_session.get(url=status_url)
+                if not status_response.ok:
+                    raise AdjustError('Unable to get triggered mainline workflow status. Status code {}. Data {}'.format(status_response.status_code, status_response.text))
+                
+                status_json = status_response.json()
+                if status_json['status'] == 'SUCCESS':
+                    break
+                if status_json['status'] == 'FAILED':
+                    raise AdjustError('Triggered mainline workflow finished with FAILED status: {}'.format(status_json))
+                # else: status == 'RUNNING'
+
+                if time.time() - start_time > self.config.get('adjust_timeout', DEFAULT_ADJUST_TIMEOUT):
+                    raise AdjustError('Timed out waiting for completion of mainline adjustment')
+
+                time.sleep(30)
+
+    def _adjust_graphql(self, canary_settings, mainline_settings):
+        response = self.post_gql_query(query_payload=query_application_id.format(self.config["application_name"]))
         if not response.ok or response.json().get('errors'):
             raise AdjustError('Unable to get harness application id. Status code {}. Data {}'.format(response.status_code, response.text))
         app_id = response.json().get('data', {}).get('applicationByName', {}).get('id')
@@ -332,7 +445,7 @@ class HarnessDriver(Adjust):
                 cpu_val = str(int(canary_settings['cpu']['value'] * 1024)) # convert vCPU to cpu units
                 mem_val = str(int(canary_settings['mem']['value'] * 1024)) # convert GiB to MiB
 
-            response = post_gql_query(query_payload=query_canary_workflow_id.format(app_id))
+            response = self.post_gql_query(query_payload=query_canary_workflow_id.format(app_id))
             if not response.ok or response.json().get('errors'):
                 raise AdjustError('Unable to get canary harness workflow id. Status code {}. Data {}'.format(response.status_code, response.text))
             workflow_id = response.json().get('data', {}).get('workflowByName', {}).get('id')
@@ -342,7 +455,7 @@ class HarnessDriver(Adjust):
             self.progress_message = 'Triggering canary worlfow'
             self.print_progress()
 
-            response = post_gql_query(query_payload=canary_adjust_mutation.format(
+            response = self.post_gql_query(query_payload=canary_adjust_mutation.format(
                 applicationId=app_id,
                 entityId=workflow_id,
                 InfraDefinition_ECS=self.config["infradefinition_ecs"],
@@ -365,7 +478,7 @@ class HarnessDriver(Adjust):
             self.progress_message = 'Waiting for workflow status SUCCESS'
             start_time = time.time()
             while True:
-                status_response = post_gql_query(query_payload=query_execution_status.format(execution_id))
+                status_response = self.post_gql_query(query_payload=query_execution_status.format(execution_id))
                 if not status_response.ok or status_response.json().get('errors'):
                     raise AdjustError('Unable to get triggered workflow execution status. Status code {}. Data {}'.format(status_response.status_code, status_response.text))
                 
@@ -392,7 +505,7 @@ class HarnessDriver(Adjust):
                 cpu_val = str(int(mainline_settings['cpu']['value'] * 1024)) # convert vCPU to cpu units
                 mem_val = str(int(mainline_settings['mem']['value'] * 1024)) # convert GiB to MiB
 
-            response = post_gql_query(query_payload=query_mainline_pipeline_id.format(app_id))
+            response = self.post_gql_query(query_payload=query_mainline_pipeline_id.format(app_id))
             if not response.ok or response.json().get('errors'):
                 raise AdjustError('Unable to get mainline harness pipeline id. Status code {}. Data {}'.format(response.status_code, response.text))
             pipeline_id = ((response.json().get('data') or {}).get('pipelineByName') or {}).get('id')
@@ -402,7 +515,7 @@ class HarnessDriver(Adjust):
             self.progress_message = 'Triggering mainline workflow'
             self.print_progress()
 
-            response = post_gql_query(query_payload=mainline_adjust_mutation.format(
+            response = self.post_gql_query(query_payload=mainline_adjust_mutation.format(
                 applicationId=app_id,
                 entityId=pipeline_id,
                 cpu=cpu_val,
@@ -422,7 +535,7 @@ class HarnessDriver(Adjust):
             self.progress_message = 'Waiting 30s to check if workflow status is FAILED'
             time.sleep(30)
 
-            status_response = post_gql_query(query_payload=query_execution_status.format(execution_id))
+            status_response = self.post_gql_query(query_payload=query_execution_status.format(execution_id))
             if not status_response.ok or status_response.json().get('errors'):
                 raise AdjustError('Unable to get triggered workflow execution status. Status code {}. Data {}'.format(status_response.status_code, status_response.text))
             
