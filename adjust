@@ -204,19 +204,21 @@ class HarnessDriver(Adjust):
         assert h.get('target_platform'), 'No target_platform was included in harness configuration located at {}'.format(config_path)
         assert h['target_platform'] in ['k8s', 'ecs'],\
           'Specified target_platform {} is not supported (in config located at{}). Supported values are "ecs" and "k8s"'.format(h['target_platform'], config_path)
-        assert h.get('target_interface', 'graphql') in ['webhoook', 'graphql'],\
-          'Invalid target_interface specified, only webhook and graphql are supported in config located at {}'.format(config_path)        
+        assert h.get('adjust_interface', 'graphql') in ['webhoook', 'graphql'] and h.get('promote_interface', 'graphql') in ['webhoook', 'graphql'],\
+          'Invalid adjust_interface or promote_interface specified, only webhook and graphql are supported in config located at {}'.format(config_path)        
         assert h.get('account_id'), 'No account_id was included in harness configuration located at {}'.format(config_path)
 
-        if h.get('target_interface', 'graphql') == 'graphql':
-          assert h.get('application_name'), 'No application_name was included in harness configuration located at {}'.format(config_path)
-          assert h.get('graphql_url'), 'No graphql_url was included in harness configuration located at {}'.format(config_path)
-          assert h.get('infradefinition_ecs'), 'No infradefinition_ecs was included in harness configuration located at {}'.format(config_path)
-          assert h.get('service'), 'No service was included in harness configuration located at {}'.format(config_path)
-          assert h.get('artifact_source_name'), 'No artifact_source_name was included in harness configuration located at {}'.format(config_path)
-        else:
-          assert h.get('adjust_token'), 'No adjust_token was included in harness configuration located at {}'.format(config_path)
-          assert h.get('promote_token'), 'No promote_token was included in harness configuration located at {}'.format(config_path)
+        if h.get('adjust_interface', 'graphql') == 'graphql' or h.get('promote_interface', 'graphql') == 'graphql':
+            assert h.get('application_name'), 'No application_name was included in harness configuration located at {}'.format(config_path)
+            assert h.get('graphql_url'), 'No graphql_url was included in harness configuration located at {}'.format(config_path)
+            if h.get('adjust_interface', 'graphql') == 'graphql':
+                assert h.get('infradefinition_ecs'), 'No infradefinition_ecs was included in harness configuration located at {}'.format(config_path)
+                assert h.get('service'), 'No service was included in harness configuration located at {}'.format(config_path)
+                assert h.get('artifact_source_name'), 'No artifact_source_name was included in harness configuration located at {}'.format(config_path)
+        if h.get('adjust_interface', 'graphql') == 'webhook':
+            assert h.get('adjust_token'), 'No adjust_token was included in harness configuration located at {}'.format(config_path)
+        if h.get('promote_interface', 'webhook') == 'webhook':
+            assert h.get('promote_token'), 'No promote_token was included in harness configuration located at {}'.format(config_path)
 
         defaults = DEFAULTS[h['target_platform']]
 
@@ -337,12 +339,18 @@ class HarnessDriver(Adjust):
         if not canary_settings and not mainline_settings:
             return {"status": "ok", "reason": "Skipped due to no data"}
 
-        if self.config.get('target_interface', 'graphql') == 'graphql':
-            self._adjust_graphql(canary_settings, mainline_settings)
-        else:
-            self._adjust_webhook(canary_settings, mainline_settings)
+        if canary_settings:
+            if self.config.get('adjust_interface', 'graphql') == 'graphql':
+                self._adjust_graphql(canary_settings, None)
+            else:
+                self._adjust_webhook(canary_settings, None)
+        if mainline_settings:
+            if self.config.get('promote_interface', 'graphql') == 'graphql':
+                self._adjust_graphql(None, mainline_settings)
+            else:
+                self._adjust_webhook(None, mainline_settings)
         
-    def _adjust_webhook(self, canary_settings, mainline_settings):
+    def _adjust_webhook(self, canary_settings=None, mainline_settings=None):
         if canary_settings:
             self.progress_message = 'Triggering canary webhook'
             self.print_progress()
@@ -429,7 +437,7 @@ class HarnessDriver(Adjust):
 
                 time.sleep(30)
 
-    def _adjust_graphql(self, canary_settings, mainline_settings):
+    def _adjust_graphql(self, canary_settings=None, mainline_settings=None):
         response = self.post_gql_query(query_payload=query_application_id.format(self.config["application_name"]))
         if not response.ok or response.json().get('errors'):
             raise AdjustError('Unable to get harness application id. Status code {}. Data {}'.format(response.status_code, response.text))

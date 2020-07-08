@@ -29,7 +29,8 @@ harness: # NOTE: if OPTUNE_USE_DRIVER_NAME is truthy, the name of the connector 
   adjust_timeout: 3600 # OPTIONAL. How long to wait for workflow to be in SUCCESS or FAILED status
   adjust_on: canary # OPTIONAL. when specified, the input data control.userdata.deploy_to must match the value configured here
   target_platform: k8s # REQUIRED. Either 'ecs' or 'k8s'
-  target_interface: graphql # OPTIONAL. Defaults to graphql, valid values are graphql and webhook
+  adjust_interface: graphql # OPTIONAL. Canary adjustment interafce, defaults to graphql, valid values are graphql and webhook
+  promote_interface: graphql # OPTIONAL. Mainline adjustment interafce, defaults to graphql, valid values are graphql and webhook
   account_id: aaaa # REQUIRED. Id of harness account
   # graphql config (REQUIRED when target_interface is graphql)
   application_name: bbbb #  Id of the harness application
