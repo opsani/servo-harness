@@ -45,8 +45,6 @@ DEFAULT_ADJUST_TIMEOUT=3600
 config_path = os.environ.get('OPTUNE_CONFIG', './config.yaml')
 config_name = os.path.basename(__file__) if os.environ.get('OPTUNE_USE_DRIVER_NAME') else 'harness'
 
-WEBHOOK_URL_FMT = "https://app.harness.io/gateway/api/webhooks/{}"
-
 query_application_id = """
 query {{
   applicationByName(name:"{}"){{
@@ -215,9 +213,11 @@ class HarnessDriver(Adjust):
                 assert h.get('infradefinition_ecs'), 'No infradefinition_ecs was included in harness configuration located at {}'.format(config_path)
                 assert h.get('service'), 'No service was included in harness configuration located at {}'.format(config_path)
                 assert h.get('artifact_source_name'), 'No artifact_source_name was included in harness configuration located at {}'.format(config_path)
-        if h.get('adjust_interface', 'graphql') == 'webhook':
+        if h.get('adjust_interface', 'webhook') == 'webhook':
+            assert h.get('webhook_url_fmt'), 'No webhook URL format was included in harness configuration located at {}'.format(config_path)
             assert h.get('adjust_token'), 'No adjust_token was included in harness configuration located at {}'.format(config_path)
         if h.get('promote_interface', 'webhook') == 'webhook':
+            assert h.get('webhook_url_fmt'), 'No webhook URL format was included in harness configuration located at {}'.format(config_path)
             assert h.get('promote_token'), 'No promote_token was included in harness configuration located at {}'.format(config_path)
 
         defaults = DEFAULTS[h['target_platform']]
@@ -365,7 +365,7 @@ class HarnessDriver(Adjust):
                 "application": self.config["application"],
                 "parameters": { "cpu": cpu_val, "mem": mem_val, 'adjust': 'True' },
             }
-            trigger_url = WEBHOOK_URL_FMT.format(self.config['adjust_token'])
+            trigger_url = self.config['webhook_url_fmt'].format(self.config['adjust_token'])
             response = self.trigger_session.post(url=trigger_url, json=trigger_json_data)
             if not response.ok:
                 raise AdjustError('Unable to trigger canary harness workflow. Status code {}. Data {}'.format(response.status_code, response.text))
@@ -408,7 +408,7 @@ class HarnessDriver(Adjust):
                 "application": self.config["application"],
                 "parameters": { "cpu": cpu_val, "mem": mem_val, 'promote': 'True' },
             }
-            trigger_url = WEBHOOK_URL_FMT.format(self.config['promote_token'])
+            trigger_url = self.config['webhook_url_fmt'].format(self.config['promote_token'])
             response = self.trigger_session.post(url=trigger_url, json=trigger_json_data)
             if not response.ok:
                 raise AdjustError('Unable to trigger mainline harness workflow. Status code {}. Data {}'.format(response.status_code, response.text))
