@@ -267,7 +267,9 @@ class HarnessDriver(Adjust):
             self.trigger_session = requests.Session()
             self.trigger_session.headers = {"content-type": "application/json"}
             self.trigger_session.params = { 'accountId': self.config['account_id'] }
+            self.trigger_session.verify = self.config.get('ssl_verify', True)
             self.status_session = requests.Session()
+            self.status_session.verify = self.config.get('ssl_verify', True)
             self.status_session.headers = {
                 "X-API-KEY": harness_api_key,
                 "content-type": "application/json",
