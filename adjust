@@ -204,8 +204,9 @@ class HarnessDriver(Adjust):
         assert h.get('target_platform'), 'No target_platform was included in harness configuration located at {}'.format(config_path)
         assert h['target_platform'] in ['k8s', 'ecs'],\
           'Specified target_platform {} is not supported (in config located at{}). Supported values are "ecs" and "k8s"'.format(h['target_platform'], config_path)
-        assert h.get('adjust_interface', 'graphql') in ['webhoook', 'graphql'] and h.get('promote_interface', 'graphql') in ['webhoook', 'graphql'],\
-          'Invalid adjust_interface or promote_interface specified, only webhook and graphql are supported in config located at {}'.format(config_path)        
+        assert (h.get('adjust_interface', 'graphql') in ['webhoook', 'graphql']) and (h.get('promote_interface', 'graphql') in ['webhoook', 'graphql']),\
+          'Invalid adjust_interface ({}) or promote_interface ({}) specified, only webhook and graphql are supported in config located at {}'\
+          ''.format(h.get('adjust_interface', 'graphql'),h.get('promote_interface', 'graphql'), config_path)        
         assert h.get('account_id'), 'No account_id was included in harness configuration located at {}'.format(config_path)
 
         if h.get('adjust_interface', 'graphql') == 'graphql' or h.get('promote_interface', 'graphql') == 'graphql':
