@@ -364,7 +364,7 @@ class HarnessDriver(Adjust):
         
             trigger_json_data = {
                 "application": self.config["application"],
-                "parameters": { "cpu": cpu_val, "mem": mem_val, 'adjust': 'True' },
+                "parameters": { "cpu": cpu_val, "mem": mem_val },
             }
             trigger_url = self.config['webhook_url_fmt'].format(self.config['adjust_token'])
             response = self.trigger_session.post(url=trigger_url, json=trigger_json_data)
