@@ -363,7 +363,7 @@ class HarnessDriver(Adjust):
                 mem_val = str(int(canary_settings['mem']['value'] * 1024)) # convert GiB to MiB
         
             trigger_json_data = {
-                "application": self.config["application"],
+                "application_name": self.config["application_name"],
                 "parameters": { "cpu": cpu_val, "mem": mem_val, 'adjust': 'True' },
             }
             trigger_url = self.config['webhook_url_fmt'].format(self.config['adjust_token'])
@@ -406,7 +406,7 @@ class HarnessDriver(Adjust):
                 mem_val = str(int(mainline_settings['mem']['value'] * 1024)) # convert GiB to MiB
 
             trigger_json_data = {
-                "application": self.config["application"],
+                "application_name": self.config["application_name"],
                 "parameters": { "cpu": cpu_val, "mem": mem_val, 'promote': 'True' },
             }
             trigger_url = self.config['webhook_url_fmt'].format(self.config['promote_token'])
