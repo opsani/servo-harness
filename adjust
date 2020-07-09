@@ -216,9 +216,11 @@ class HarnessDriver(Adjust):
                 assert h.get('artifact_source_name'), 'No artifact_source_name was included in harness configuration located at {}'.format(config_path)
         if h.get('adjust_interface', 'webhook') == 'webhook':
             assert h.get('webhook_url_fmt'), 'No webhook URL format was included in harness configuration located at {}'.format(config_path)
+            assert h.get('application'), 'No application was included in harness configuration located at {}'.format(config_path)
             assert h.get('adjust_token'), 'No adjust_token was included in harness configuration located at {}'.format(config_path)
         if h.get('promote_interface', 'webhook') == 'webhook':
             assert h.get('webhook_url_fmt'), 'No webhook URL format was included in harness configuration located at {}'.format(config_path)
+            assert h.get('application'), 'No application was included in harness configuration located at {}'.format(config_path)
             assert h.get('promote_token'), 'No promote_token was included in harness configuration located at {}'.format(config_path)
 
         defaults = DEFAULTS[h['target_platform']]
@@ -363,7 +365,7 @@ class HarnessDriver(Adjust):
                 mem_val = str(int(canary_settings['mem']['value'] * 1024)) # convert GiB to MiB
         
             trigger_json_data = {
-                "application_name": self.config["application_name"],
+                "application": self.config["application"],
                 "parameters": { "cpu": cpu_val, "mem": mem_val },
             }
             trigger_url = self.config['webhook_url_fmt'].format(self.config['adjust_token'])
@@ -406,7 +408,7 @@ class HarnessDriver(Adjust):
                 mem_val = str(int(mainline_settings['mem']['value'] * 1024)) # convert GiB to MiB
 
             trigger_json_data = {
-                "application_name": self.config["application_name"],
+                "application": self.config["application"],
                 "parameters": { "cpu": cpu_val, "mem": mem_val, 'promote': 'True' },
             }
             trigger_url = self.config['webhook_url_fmt'].format(self.config['promote_token'])
