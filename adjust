@@ -254,7 +254,7 @@ class HarnessDriver(Adjust):
         with open('/etc/harness-auth/token', 'r') as auth_file:
             harness_api_key = auth_file.read().strip()
 
-        if h.get('target_interface', 'graphql') == 'graphql':
+        if h.get('adjust_interface', 'graphql') == 'graphql' or h.get('promote_interface', 'graphql') == 'graphql':
             session = requests.Session()
             session.verify = self.config.get('ssl_verify', True)
             session.headers = {
@@ -263,7 +263,7 @@ class HarnessDriver(Adjust):
             }
             session.params = { 'accountId': self.config['account_id'] }
             self.post_gql_query = lambda query_payload: session.post(url=self.config['graphql_url'], json={'query': query_payload })
-        else: # Init webhook sessions
+        if h.get('adjust_interface', 'graphql') == 'webhook' or h.get('promote_interface', 'graphql') == 'webhook':
             self.trigger_session = requests.Session()
             self.trigger_session.headers = {"content-type": "application/json"}
             self.trigger_session.params = { 'accountId': self.config['account_id'] }
