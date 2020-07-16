@@ -57,7 +57,7 @@ query_canary_workflow_id = """
 query {{
   workflowByName(applicationId:"{}",workflowName:"opsani-canary-deploy"){{
     id
-	  name
+    name
   }}
 }}
 """
@@ -66,7 +66,23 @@ query_mainline_pipeline_id = """
 query {{
   pipelineByName(applicationId:"{}",pipelineName:"Opsani Promotion"){{
     id
-	  name
+    name
+  }}
+}}
+"""
+
+query_webhook_url = """
+query {{
+  triggers(filters: {{application: {{operator:EQUALS, values: "{}"}}, }}) {{
+    nodes {{
+      condition {{
+        ... on OnWebhook {{
+          webhookDetails {{
+            webhookURL
+          }}
+        }}
+      }}
+    }}
   }}
 }}
 """
@@ -207,21 +223,12 @@ class HarnessDriver(Adjust):
           ''.format(h.get('adjust_interface', 'graphql'),h.get('promote_interface', 'graphql'), config_path)        
         assert h.get('account_id'), 'No account_id was included in harness configuration located at {}'.format(config_path)
 
-        if h.get('adjust_interface', 'graphql') == 'graphql' or h.get('promote_interface', 'graphql') == 'graphql':
-            assert h.get('application_name'), 'No application_name was included in harness configuration located at {}'.format(config_path)
-            assert h.get('graphql_url'), 'No graphql_url was included in harness configuration located at {}'.format(config_path)
-            if h.get('adjust_interface', 'graphql') == 'graphql':
-                assert h.get('infradefinition_ecs'), 'No infradefinition_ecs was included in harness configuration located at {}'.format(config_path)
-                assert h.get('service'), 'No service was included in harness configuration located at {}'.format(config_path)
-                assert h.get('artifact_source_name'), 'No artifact_source_name was included in harness configuration located at {}'.format(config_path)
-        if h.get('adjust_interface', 'webhook') == 'webhook':
-            assert h.get('webhook_url_fmt'), 'No webhook URL format was included in harness configuration located at {}'.format(config_path)
-            assert h.get('application'), 'No application was included in harness configuration located at {}'.format(config_path)
-            assert h.get('adjust_token'), 'No adjust_token was included in harness configuration located at {}'.format(config_path)
-        if h.get('promote_interface', 'webhook') == 'webhook':
-            assert h.get('webhook_url_fmt'), 'No webhook URL format was included in harness configuration located at {}'.format(config_path)
-            assert h.get('application'), 'No application was included in harness configuration located at {}'.format(config_path)
-            assert h.get('promote_token'), 'No promote_token was included in harness configuration located at {}'.format(config_path)
+        assert h.get('application_name'), 'No application_name was included in harness configuration located at {}'.format(config_path)
+        assert h.get('graphql_url'), 'No graphql_url was included in harness configuration located at {}'.format(config_path)
+        if h.get('adjust_interface', 'graphql') == 'graphql':
+            assert h.get('infradefinition_ecs'), 'No infradefinition_ecs was included in harness configuration located at {}'.format(config_path)
+            assert h.get('service'), 'No service was included in harness configuration located at {}'.format(config_path)
+            assert h.get('artifact_source_name'), 'No artifact_source_name was included in harness configuration located at {}'.format(config_path)
 
         defaults = DEFAULTS[h['target_platform']]
 
@@ -254,15 +261,15 @@ class HarnessDriver(Adjust):
         with open('/etc/harness-auth/token', 'r') as auth_file:
             harness_api_key = auth_file.read().strip()
 
-        if h.get('adjust_interface', 'graphql') == 'graphql' or h.get('promote_interface', 'graphql') == 'graphql':
-            session = requests.Session()
-            session.verify = self.config.get('ssl_verify', True)
-            session.headers = {
-                "X-API-KEY": harness_api_key,
-                "content-type": "application/json",
-            }
-            session.params = { 'accountId': self.config['account_id'] }
-            self.post_gql_query = lambda query_payload: session.post(url=self.config['graphql_url'], json={'query': query_payload })
+        session = requests.Session()
+        session.verify = self.config.get('ssl_verify', True)
+        session.headers = {
+            "X-API-KEY": harness_api_key,
+            "content-type": "application/json",
+        }
+        session.params = { 'accountId': self.config['account_id'] }
+        self.post_gql_query = lambda query_payload: session.post(url=self.config['graphql_url'], json={'query': query_payload })
+
         if h.get('adjust_interface', 'graphql') == 'webhook' or h.get('promote_interface', 'graphql') == 'webhook':
             self.trigger_session = requests.Session()
             self.trigger_session.headers = {"content-type": "application/json"}
@@ -338,111 +345,11 @@ class HarnessDriver(Adjust):
         if self.config.get('adjust_on') and data["control"]["userdata"]["deploy_to"] != self.config['adjust_on']:
             return {"status": "ok", "reason": "Skipped due to 'adjust_on' condition"}
 
-        # TODO: promote component
         canary_settings = data['application']['components'].get('canary', {}).get('settings')
         mainline_settings = data['application']['components'].get('mainline', {}).get('settings')
         if not canary_settings and not mainline_settings:
             return {"status": "ok", "reason": "Skipped due to no data"}
-
-        if canary_settings:
-            if self.config.get('adjust_interface', 'graphql') == 'graphql':
-                self._adjust_graphql(canary_settings, None)
-            else:
-                self._adjust_webhook(canary_settings, None)
-        if mainline_settings:
-            if self.config.get('promote_interface', 'graphql') == 'graphql':
-                self._adjust_graphql(None, mainline_settings)
-            else:
-                self._adjust_webhook(None, mainline_settings)
         
-    def _adjust_webhook(self, canary_settings=None, mainline_settings=None):
-        if canary_settings:
-            self.progress_message = 'Triggering canary webhook'
-            self.print_progress()
-            if self.config['target_platform'] == 'k8s':
-                cpu_val = canary_settings['cpu']['value']
-                mem_val = '{}Gi'.format(canary_settings['mem']['value'])
-            elif self.config['target_platform'] == 'ecs':
-                cpu_val = str(int(canary_settings['cpu']['value'] * 1024)) # convert vCPU to cpu units
-                mem_val = str(int(canary_settings['mem']['value'] * 1024)) # convert GiB to MiB
-        
-            trigger_json_data = {
-                "application": self.config["application"],
-                "parameters": { "cpu": cpu_val, "mem": mem_val },
-            }
-            trigger_url = self.config['webhook_url_fmt'].format(self.config['adjust_token'])
-            response = self.trigger_session.post(url=trigger_url, json=trigger_json_data)
-            if not response.ok:
-                raise AdjustError('Unable to trigger canary harness workflow. Status code {}. Data {}'.format(response.status_code, response.text))
-
-            trigger_result = response.json()
-            if not trigger_result.get('apiUrl'):
-                raise AdjustError('Canary workflow trigger response contained no status url. Response: {}'.format(response.text))
-            status_url = trigger_result["apiUrl"].replace("https://app.harness.io/api/","https://app.harness.io/gateway/api/")
-
-            self.progress_message = 'Waiting for canary workflow status SUCCESS'
-            start_time = time.time()
-            while True:
-                status_response = self.status_session.get(url=status_url)
-                if not status_response.ok:
-                    raise AdjustError('Unable to get triggered canary workflow status. Status code {}. Data {}'.format(status_response.status_code, status_response.text))
-                
-                status_json = status_response.json()
-                if status_json['status'] == 'SUCCESS':
-                    break
-                if status_json['status'] == 'FAILED':
-                    raise AdjustError('Triggered canary workflow finished with FAILED status: {}'.format(status_json))
-                # else: status == 'RUNNING'
-
-                if time.time() - start_time > self.config.get('adjust_timeout', DEFAULT_ADJUST_TIMEOUT):
-                    raise AdjustError('Timed out waiting for completion of canary adjustment')
-
-                time.sleep(30)
-
-        if mainline_settings:
-            self.progress_message = 'Triggering mainline webhook'
-            self.print_progress()
-            if self.config['target_platform'] == 'k8s':
-                cpu_val = mainline_settings['cpu']['value']
-                mem_val = '{}Gi'.format(mainline_settings['mem']['value'])
-            elif self.config['target_platform'] == 'ecs':
-                cpu_val = str(int(mainline_settings['cpu']['value'] * 1024)) # convert vCPU to cpu units
-                mem_val = str(int(mainline_settings['mem']['value'] * 1024)) # convert GiB to MiB
-
-            trigger_json_data = {
-                "application": self.config["application"],
-                "parameters": { "cpu": cpu_val, "mem": mem_val, 'promote': 'True' },
-            }
-            trigger_url = self.config['webhook_url_fmt'].format(self.config['promote_token'])
-            response = self.trigger_session.post(url=trigger_url, json=trigger_json_data)
-            if not response.ok:
-                raise AdjustError('Unable to trigger mainline harness workflow. Status code {}. Data {}'.format(response.status_code, response.text))
-
-            trigger_result = response.json()
-            if not trigger_result.get('apiUrl'):
-                raise AdjustError('Mainline workflow trigger response contained no status url. Response: {}'.format(response.text))
-            status_url = trigger_result["apiUrl"].replace("https://app.harness.io/api/","https://app.harness.io/gateway/api/")
-
-            self.progress_message = 'Waiting for mainline workflow status SUCCESS'
-            start_time = time.time()
-            while True:
-                status_response = self.status_session.get(url=status_url)
-                if not status_response.ok:
-                    raise AdjustError('Unable to get triggered mainline workflow status. Status code {}. Data {}'.format(status_response.status_code, status_response.text))
-                
-                status_json = status_response.json()
-                if status_json['status'] == 'SUCCESS':
-                    break
-                if status_json['status'] == 'FAILED':
-                    raise AdjustError('Triggered mainline workflow finished with FAILED status: {}'.format(status_json))
-                # else: status == 'RUNNING'
-
-                if time.time() - start_time > self.config.get('adjust_timeout', DEFAULT_ADJUST_TIMEOUT):
-                    raise AdjustError('Timed out waiting for completion of mainline adjustment')
-
-                time.sleep(30)
-
-    def _adjust_graphql(self, canary_settings=None, mainline_settings=None):
         response = self.post_gql_query(query_payload=query_application_id.format(self.config["application_name"]))
         if not response.ok or response.json().get('errors'):
             raise AdjustError('Unable to get harness application id. Status code {}. Data {}'.format(response.status_code, response.text))
@@ -451,103 +358,135 @@ class HarnessDriver(Adjust):
             raise AdjustError('Unable to parse harness application id from response json. Data: {}'.format(response.json()))
 
         if canary_settings:
-            if self.config['target_platform'] == 'k8s':
-                cpu_val = canary_settings['cpu']['value']
-                mem_val = '{}Gi'.format(canary_settings['mem']['value'])
-            elif self.config['target_platform'] == 'ecs':
-                cpu_val = str(int(canary_settings['cpu']['value'] * 1024)) # convert vCPU to cpu units
-                mem_val = str(int(canary_settings['mem']['value'] * 1024)) # convert GiB to MiB
-
-            response = self.post_gql_query(query_payload=query_canary_workflow_id.format(app_id))
-            if not response.ok or response.json().get('errors'):
-                raise AdjustError('Unable to get canary harness workflow id. Status code {}. Data {}'.format(response.status_code, response.text))
-            workflow_id = response.json().get('data', {}).get('workflowByName', {}).get('id')
-            if workflow_id is None:
-                raise AdjustError('Unable to parse canary harness workflow id from response json. Data: {}'.format(response.json()))
-
-            self.progress_message = 'Triggering canary worlfow'
-            self.print_progress()
-
-            response = self.post_gql_query(query_payload=canary_adjust_mutation.format(
-                applicationId=app_id,
-                entityId=workflow_id,
-                InfraDefinition_ECS=self.config["infradefinition_ecs"],
-                Service=self.config["service"],
-                artifactSourceName=self.config['artifact_source_name'],
-                cpu=cpu_val,
-                mem=mem_val
-            ))
-            if not response.ok or response.json().get('errors'):
-                raise AdjustError('Unable to trigger canary harness workflow. Status code {}. Data {}'.format(response.status_code, response.text))
-
-            se = response.json().get('data', {}).get('startExecution', {})
-            execution_id = se.get('execution', {}).get('id')
-            if execution_id is None:
-                raise AdjustError('Failed to parse execution id from workflow trigger response. Response: {}'.format(response.json()))
-
-            if se.get('warningMessage'):
-                print('Trigger response contained warning: {}'.format(se['warningMessage']), file=sys.stderr)
-
-            self.progress_message = 'Waiting for workflow status SUCCESS'
-            start_time = time.time()
-            while True:
-                status_response = self.post_gql_query(query_payload=query_execution_status.format(execution_id))
-                if not status_response.ok or status_response.json().get('errors'):
-                    raise AdjustError('Unable to get triggered workflow execution status. Status code {}. Data {}'.format(status_response.status_code, status_response.text))
+            cpu_val, mem_val = self._parse_input_values(canary_settings)
+            if self.config.get('adjust_interface', 'graphql') == 'graphql':
+                self._adjust_graphql(cpu_val, mem_val, app_id, 'canary')
+            else:
+                self._adjust_webhook(cpu_val, mem_val, app_id, 'canary')
                 
-                execution_json = status_response.json().get('data', {}).get('execution')
-                if execution_json is None:
-                    raise AdjustError('Unable to parse triggered workflow execution status. Data {}'.format(status_response.json()))
-
-                if execution_json['status'] == 'SUCCESS':
-                    break
-                if execution_json['status'] == 'FAILED':
-                    raise AdjustError('Triggered workflow finished with FAILED status: {}'.format(execution_json))
-                # else: status == 'RUNNING'
-
-                if time.time() - start_time > self.config.get('adjust_timeout', DEFAULT_ADJUST_TIMEOUT):
-                    raise AdjustError('Timed out waiting for completion of adjustment')
-
-                time.sleep(30)
-        
         if mainline_settings:
-            if self.config['target_platform'] == 'k8s':
-                cpu_val = mainline_settings['cpu']['value']
-                mem_val = '{}Gi'.format(mainline_settings['mem']['value'])
-            elif self.config['target_platform'] == 'ecs':
-                cpu_val = str(int(mainline_settings['cpu']['value'] * 1024)) # convert vCPU to cpu units
-                mem_val = str(int(mainline_settings['mem']['value'] * 1024)) # convert GiB to MiB
+            cpu_val, mem_val = self._parse_input_values(mainline_settings)
+            if self.config.get('promote_interface', 'graphql') == 'graphql':
+                self._adjust_graphql(cpu_val, mem_val, app_id, 'mainline')
+            else:
+                self._adjust_webhook(cpu_val, mem_val, app_id, 'mainline')
 
-            response = self.post_gql_query(query_payload=query_mainline_pipeline_id.format(app_id))
-            if not response.ok or response.json().get('errors'):
-                raise AdjustError('Unable to get mainline harness pipeline id. Status code {}. Data {}'.format(response.status_code, response.text))
-            pipeline_id = ((response.json().get('data') or {}).get('pipelineByName') or {}).get('id')
-            if pipeline_id is None:
-                raise AdjustError('Unable to parse mainline harness pipeline id from response json. Data: {}'.format(response.json()))
+    def _parse_input_values(self, settings):
+        'Retrieve cpu and mem values from input json and convert to target platform units based on loaded config'
+        if self.config['target_platform'] == 'k8s':
+            cpu_val = settings['cpu']['value']
+            mem_val = '{}Gi'.format(settings['mem']['value'])
+        elif self.config['target_platform'] == 'ecs':
+            cpu_val = str(int(settings['cpu']['value'] * 1024)) # convert vCPU to cpu units
+            mem_val = str(int(settings['mem']['value'] * 1024)) # convert GiB to MiB
+        return cpu_val, mem_val
+        
+    def _adjust_webhook(self, cpu, mem, app_id, target):
+        assert target in ['canary', 'mainline'], 'Invalid target {} given to  _adjust_webhook'.format(target)
+        self.progress_message = 'Preparing to trigger {} worlfow via webhook'.format(target) # Don't print unless this part takes longer than 30s
 
-            self.progress_message = 'Triggering mainline workflow'
-            self.print_progress()
+        response = self.post_gql_query(query_webhook_url.format(app_id))
+        if not response.ok or response.json().get('errors'):
+            raise AdjustError('Unable to get {} harness webhook URL. Status code {}. Data {}'.format(target, response.status_code, response.text))
 
-            response = self.post_gql_query(query_payload=mainline_adjust_mutation.format(
-                applicationId=app_id,
-                entityId=pipeline_id,
-                cpu=cpu_val,
-                mem=mem_val
-            ))
-            if not response.ok or response.json().get('errors'):
-                raise AdjustError('Unable to trigger mainline harness workflow. Status code {}. Data {}'.format(response.status_code, response.text))
+        trigger_url = next(iter(response.json().get('data', {}).get('triggers', {}).get('nodes', [])), {}).get('condition', {}).get('webhookDetails', {}).get('webhookURL')
+        if trigger_url is None:
+            raise AdjustError('Unable to parse {} harness webhook URL from response json. Data: {}'.format(target, response.json()))
 
-            se = response.json().get('data', {}).get('startExecution', {})
-            execution_id = se.get('execution', {}).get('id')
-            if execution_id is None:
-                raise AdjustError('Failed to parse execution id from workflow trigger response. Response: {}'.format(response.json()))
+        trigger_json_data = {
+            "application": app_id,
+            "parameters": { "cpu": cpu, "mem": mem },
+        }
+        if target == 'mainline':
+            trigger_json_data['promote'] = 'True'
 
-            if se.get('warningMessage'):
-                print('Trigger response contained warning: {}'.format(se['warningMessage']), file=sys.stderr)
+        self.progress_message = 'Triggering {} webhook'.format(target)
+        self.print_progress()
 
-            self.progress_message = 'Waiting 30s to check if workflow status is FAILED'
+        response = self.trigger_session.post(url=trigger_url, json=trigger_json_data)
+        if not response.ok:
+            raise AdjustError('Unable to trigger {} harness workflow webhook. Status code {}. Data {}'.format(target, response.status_code, response.text))
+
+        trigger_result = response.json()
+        if not trigger_result.get('apiUrl'):
+            raise AdjustError('Response for {} workflow trigger response contained no status url. Response: {}'.format(target, response.text))
+
+        status_url = trigger_result["apiUrl"].replace("https://app.harness.io/api/","https://app.harness.io/gateway/api/")
+        self.progress_message = 'Waiting for {} workflow status SUCCESS'.format(target)
+        start_time = time.time()
+        while True:
+            status_response = self.status_session.get(url=status_url)
+            if not status_response.ok:
+                raise AdjustError('Unable to get triggered {} workflow status. Status code {}. Data {}'.format(target, status_response.status_code, status_response.text))
+            
+            status_json = status_response.json()
+            if status_json['status'] == 'SUCCESS':
+                break
+            if status_json['status'] == 'FAILED':
+                raise AdjustError('Triggered {} workflow finished with FAILED status: {}'.format(target, status_json))
+            # else: status == 'RUNNING'
+
+            if time.time() - start_time > self.config.get('adjust_timeout', DEFAULT_ADJUST_TIMEOUT):
+                raise AdjustError('Timed out waiting for completion of {} adjustment'.format(target))
+
             time.sleep(30)
 
+    def _adjust_graphql(self, cpu, mem, app_id, target):
+        assert target in ['canary', 'mainline'], 'Invalid target {} given to  _adjust_graphql'.format(target)
+        self.progress_message = 'Preparing to trigger {} worlfow via graphql'.format(target) # Don't print unless this part takes longer than 30s
+
+        if target == 'canary':
+            response = self.post_gql_query(query_payload=query_canary_workflow_id.format(app_id))
+        else: # target == 'mainline'
+            response = self.post_gql_query(query_payload=query_mainline_pipeline_id.format(app_id))
+
+        if not response.ok or response.json().get('errors'):
+            raise AdjustError('Unable to get {} harness {} id. Status code {}. Data {}'\
+                .format(target, 'workflow' if target == 'canary' else 'pipeline', response.status_code, response.text))
+
+        if target == 'canary':
+            entity_id = response.json().get('data', {}).get('workflowByName', {}).get('id')
+        else: # target == 'mainline'
+            entity_id = ((response.json().get('data') or {}).get('pipelineByName') or {}).get('id')
+
+        if entity_id is None:
+            raise AdjustError('Unable to parse {} harness {} id from response json. Data: {}'\
+                .format(target, 'workflow' if target == 'canary' else 'pipeline', response.json()))
+
+        kwargs = {
+            'applicationId': app_id,
+            'entityId': entity_id,
+            'cpu': cpu,
+            'mem': mem
+        }
+        if target == 'canary':
+            kwargs['InfraDefinition_ECS'] = self.config["infradefinition_ecs"]
+            kwargs['Service'] = self.config["service"]
+            kwargs['artifactSourceName'] = self.config["artifact_source_name"]
+        
+        self.progress_message = 'Triggering {} worlfow via graphql'.format(target)
+        self.print_progress()
+
+        if target == 'canary':
+            response = self.post_gql_query(query_payload=canary_adjust_mutation.format(**kwargs))
+        else:
+            response = self.post_gql_query(query_payload=mainline_adjust_mutation.format(**kwargs))
+        
+        if not response.ok or response.json().get('errors'):
+            raise AdjustError('Unable to {} canary harness workflow. Status code {}. Data {}'.format(target, response.status_code, response.text))
+
+        se = response.json().get('data', {}).get('startExecution', {})
+        execution_id = se.get('execution', {}).get('id')
+        if execution_id is None:
+            raise AdjustError('Failed to parse execution id from workflow trigger response. Response: {}'.format(response.json()))
+
+        if se.get('warningMessage'):
+            print('Trigger response contained warning: {}'.format(se['warningMessage']), file=sys.stderr)
+
+        self.progress_message = 'Waiting for workflow status SUCCESS or timeout'
+        self.print_progress()
+        start_time = time.time()
+        while True:
             status_response = self.post_gql_query(query_payload=query_execution_status.format(execution_id))
             if not status_response.ok or status_response.json().get('errors'):
                 raise AdjustError('Unable to get triggered workflow execution status. Status code {}. Data {}'.format(status_response.status_code, status_response.text))
@@ -556,8 +495,18 @@ class HarnessDriver(Adjust):
             if execution_json is None:
                 raise AdjustError('Unable to parse triggered workflow execution status. Data {}'.format(status_response.json()))
 
+            if execution_json['status'] == 'SUCCESS':
+                break
             if execution_json['status'] == 'FAILED':
-                raise AdjustError('Triggered mainline workflow finished with FAILED status: {}'.format(execution_json))
+                raise AdjustError('Triggered workflow finished with FAILED status: {}'.format(execution_json))
+            # else: status == 'RUNNING'
+
+            if time.time() - start_time > self.config.get('adjust_timeout', DEFAULT_ADJUST_TIMEOUT):
+                if target == 'mainline':
+                    break # Timeouts only error for canary. We don't need to wait for mainline to finish
+                raise AdjustError('Timed out waiting for completion of adjustment')
+
+            time.sleep(30)
 
 def cpuunits(s) -> float:
     '''convert a string for CPU resource (with optional unit suffix) into a number'''
