@@ -73,13 +73,12 @@ query {{
 
 query_webhook_url = """
 query {{
-  triggers(limit:10, filters: {{application: {{operator:EQUALS, values: "{}"}}, }}) {{
-    nodes {{
-      condition {{
-        ... on OnWebhook {{
-          webhookDetails {{
-            webhookURL
-          }}
+  triggerByName(applicationId:"{}",triggerName: "opsani-canary-update") {{
+    id
+    condition {{
+      ... on OnWebhook {{
+        webhookDetails {{
+          webhookURL
         }}
       }}
     }}
