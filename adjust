@@ -389,7 +389,7 @@ class HarnessDriver(Adjust):
             raise AdjustError('Unable to get {} harness webhook URL. Status code {}. Data {}'.format(target, response.status_code, response.text))
 
         trigger_url = next(
-          iter(n for n in response.json().get('data', {}).get('triggers', {}).get('nodes', []) if n['condition']), 
+          iter(n for n in response.json().get('data', {}).get('triggerByName', {}) if n['condition']), 
           {}
         ).get('condition', {}).get('webhookDetails', {}).get('webhookURL')
         if trigger_url is None:
