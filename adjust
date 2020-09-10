@@ -389,7 +389,6 @@ class HarnessDriver(Adjust):
             raise AdjustError('Unable to get {} harness webhook URL. Status code {}. Data {}'.format(target, response.status_code, response.text))
 
         trigger_url = response.json().get('data', {}).get('triggerByName', {}).get('condition', {}).get('webhookDetails', {}).get('webhookURL')
-        self.progress_message = '!!!!TRIGGER URL!!!! {}'.format(trigger_url)
         if trigger_url is None:
             raise AdjustError('Unable to parse {} harness webhook URL from response json. Data: {}'.format(target, response.json()))
 
@@ -405,7 +404,7 @@ class HarnessDriver(Adjust):
 
         response = self.trigger_session.post(url=trigger_url, json=trigger_json_data)
         if not response.ok:
-            raise AdjustError('Unable to trigger {} harness workflow webhook. Status code {}. Data {}'.format(target, response.status_code, response.text))
+            raise AdjustError('Unable to trigger {} harness workflow webhook. Status code {}. Data {}. Trigger URL {}. Trigger JSON {}'.format(target, response.status_code, response.text, trigger_url, trigger_json_data))
 
         trigger_result = response.json()
         if not trigger_result.get('apiUrl'):
