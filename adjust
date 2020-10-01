@@ -301,7 +301,7 @@ class HarnessDriver(Adjust):
             }
         }
 
-        url = "https://api.opsani.com/accounts/{}/applications/{}/config/".format(
+        url = "https://api.opsani.com/accounts/{}/applications/{}/assets/opsani.com/userdata".format(
             self.config['opsani_account'],
             self.config['opsani_app_name']
         )
@@ -319,7 +319,7 @@ class HarnessDriver(Adjust):
         opsani_config = response.json()
 
         comp_key = 'canary' if config_name == 'harness' else config_name
-        opsani_config_settings = opsani_config.get('adjustment', {}).get('control', {}).get('userdata', {}).get(comp_key)
+        opsani_config_settings = opsani_config.get('data', {}).get(comp_key)
 
         if opsani_config_settings and opsani_config_settings.get('cpu'):
             if self.config['target_platform'] == 'k8s':
