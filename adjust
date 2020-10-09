@@ -301,25 +301,25 @@ class HarnessDriver(Adjust):
             }
         }
 
-        url = "https://api.opsani.com/accounts/{}/applications/{}/config/".format(
+        comp_key = 'canary' if config_name == 'harness' else config_name
+        url = "https://api.opsani.com/accounts/{}/applications/{}/assets/opsani.com/{}".format(
             self.config['opsani_account'],
-            self.config['opsani_app_name']
+            self.config['opsani_app_name'],
+            comp_key
         )
 
         with open('/etc/opsani-auth/token', 'r') as auth_file:
             opsani_token = auth_file.read().strip()
         headers = {
-            "Content-type": "application/merge-patch+json",
+            "Content-type": "application/json",
             "Authorization": "Bearer {}".format(opsani_token),
         }
         response = requests.get(url, headers=headers)
         if not response.ok:
-            raise AdjustError('Unable to query OCO config. Status code {}. Data {}'.format(response.status_code, response.text))
+            raise AdjustError('Unable to query OCO config. Status code {}. Data {} comp_key {}'.format(response.status_code, response.text, comp_key))
 
         opsani_config = response.json()
-
-        comp_key = 'canary' if config_name == 'harness' else config_name
-        opsani_config_settings = opsani_config.get('adjustment', {}).get('control', {}).get('userdata', {}).get(comp_key)
+        opsani_config_settings = opsani_config.get('data')
 
         if opsani_config_settings and opsani_config_settings.get('cpu'):
             if self.config['target_platform'] == 'k8s':
