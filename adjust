@@ -302,7 +302,6 @@ class HarnessDriver(Adjust):
         }
 
         comp_key = 'canary' if config_name == 'harness' else config_name
-
         url = "https://api.opsani.com/accounts/{}/applications/{}/assets/opsani.com/{}".format(
             self.config['opsani_account'],
             self.config['opsani_app_name'],
@@ -317,7 +316,7 @@ class HarnessDriver(Adjust):
         }
         response = requests.get(url, headers=headers)
         if not response.ok:
-            raise AdjustError('Unable to query OCO config. Status code {}. Data {}'.format(response.status_code, response.text))
+            raise AdjustError('Unable to query OCO config. Status code {}. Data {} comp_key {}'.format(response.status_code, response.text, comp_key))
 
         opsani_config = response.json()
         opsani_config_settings = opsani_config.get('data')
