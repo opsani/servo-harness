@@ -64,7 +64,7 @@ query {{
 
 query_mainline_pipeline_id = """
 query {{
-  pipelineByName(applicationId:"{}",pipelineName:"opsani-promotion"){{
+  pipelineByName(applicationId:"{}",pipelineName:"Opsani Promotion"){{
     id
     name
   }}
