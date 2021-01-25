@@ -427,7 +427,7 @@ class HarnessDriver(Adjust):
             # else: status == 'RUNNING'
 
             if time.time() - start_time > self.config.get('adjust_timeout', DEFAULT_ADJUST_TIMEOUT):
-                raise AdjustError('Timed out waiting for completion of {} adjustment'.format(target))
+                raise AdjustError('Timed out waiting for completion of {} adjustment'.format(target), status='rejected', reason='timeout')
 
             time.sleep(30)
 
