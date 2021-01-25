@@ -504,7 +504,7 @@ class HarnessDriver(Adjust):
             if time.time() - start_time > self.config.get('adjust_timeout', DEFAULT_ADJUST_TIMEOUT):
                 if target == 'mainline':
                     break # Timeouts only error for canary. We don't need to wait for mainline to finish
-                raise AdjustError('Timed out waiting for completion of adjustment')
+                raise AdjustError('Timed out waiting for completion of adjustment', status='rejected', reason='timeout')
 
             time.sleep(30)
 
