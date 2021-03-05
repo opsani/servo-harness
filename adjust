@@ -403,20 +403,19 @@ class HarnessDriver(Adjust):
 
         self.progress_message = 'Triggering {} webhook'.format(target)
         self.print_progress()
-        
         # allow_adjust_url allows you to set a URL in your servo config for an API call that will run an external script
         # loaded info a configmap and watch for the response code of the script to determine whether adjustments are currently allowed.
         if self.config['allow_adjust_url']:
             URL = self.config['allow_adjust_url']
             APP = self.config['application_name']
-            results = subprocess.run(['sh','/servo/allow-adjust-query.sh',APP,URL], capture_output=True, text=True)
+            results = subprocess.run("/servo/allow-adjust-query.sh {} {}".format(self.config['application_name'],self.config['allow_adjust_url']), shell=True, capture_output=True)
             while(results.returncode == 1):
                 self.progress_message = 'Blackout Window? Unable to get permission to deploy: {}'.format(results.stdout.rstrip())
                 self.print_progress()
                 self.progress_message = 'Sleeping for one hour.'
                 self.print_progress()
                 time.sleep(3600)
-                results = subprocess.run(['sh','/servo/allow-adjust-query.sh',APP,URL], capture_output=True, text=True)
+                results = subprocess.run("/servo/allow-adjust-query.sh {} {}".format(self.config['application_name'],self.config['allow_adjust_url']), shell=True, capture_output=True)
                 continue
             self.progress_message = 'Adjustment verification succeeded: {}. Adjusting.'.format(results.stdout.rstrip())
             self.print_progress()
