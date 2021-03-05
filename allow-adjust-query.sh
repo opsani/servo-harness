@@ -3,7 +3,6 @@
 APPLICATION=$1
 URL=$2
 RESULTS=`curl -sS -H 'Content-type: application/json' -H 'Accept: application/json' -X POST -k ${URL}/${APPLICATION} -d '{"deployType": "Harness","desc": "opsani-servo blackout window check", "noOfHours": 1}'`
-RESULTS=`/bin/cat output.txt`
 APPROVED=`echo $RESULTS | jq .approved`
 MESSAGE=`echo $RESULTS | jq .message`
 
