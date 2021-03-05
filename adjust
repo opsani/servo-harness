@@ -6,6 +6,7 @@ import requests
 import sys
 import time
 import yaml
+import subprocess
 
 from adjust import Adjust, AdjustError
 
@@ -402,6 +403,21 @@ class HarnessDriver(Adjust):
 
         self.progress_message = 'Triggering {} webhook'.format(target)
         self.print_progress()
+        
+        # allow_adjust_url allows you to set a URL in your servo config for an API call that will run an external script
+        # loaded info a configmap and watch for the response code of the script to determine whether adjustments are currently allowed.
+        if self.config['allow_adjust_url']:
+            results = subprocess.run(['sh','allow-adjust-query.sh',self.config['application_name'],self.config['allow_adjust_url']], capture_output=True, text=True)
+            while(results.returncode == 1):
+                self.progress_message = 'Blackout Window? Unable to get permission to deploy: {}'.format(results.stdout.rstrip())
+                self.print_progress()
+                self.progress_message = 'Sleeping for one hour.'
+                self.print_progress()
+                time.sleep(3600)
+                results = subprocess.run(['sh','allow-adjust-query.sh',self.config['application_name'],self.config['allow_adjust_url']], capture_output=True, text=True)
+                continue
+            self.progress_message = 'Adjustment verification succeeded: {}. Adjusting.'.format(results.stdout.rstrip())
+            self.print_progress()
 
         response = self.trigger_session.post(url=trigger_url, json=trigger_json_data)
         if not response.ok:
