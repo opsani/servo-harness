@@ -410,15 +410,10 @@ class HarnessDriver(Adjust):
             APP = self.config['application_name']
             results = subprocess.run("/servo/allow-adjust-query.sh {} {}".format(self.config['application_name'],self.config['allow_adjust_url']), shell=True, capture_output=True)
             while(results.returncode == 1):
-                self.progress_message = 'Blackout Window? Unable to get permission to deploy: {}'.format(results.stdout.rstrip())
-                self.print_progress()
-                self.progress_message = 'Sleeping for one hour.'
-                self.print_progress()
-                time.sleep(3600)
+                print("BLACKOUT: {}".format(results.stdout.rstrip()), file=sys.stderr)
+                time.sleep(300)
                 results = subprocess.run("/servo/allow-adjust-query.sh {} {}".format(self.config['application_name'],self.config['allow_adjust_url']), shell=True, capture_output=True)
-                continue
-            self.progress_message = 'Adjustment verification succeeded: {}. Adjusting.'.format(results.stdout.rstrip())
-            self.print_progress()
+            print("DEBUG DONE DONE DONE DEBUG", file=sys.stdout)
 
         response = self.trigger_session.post(url=trigger_url, json=trigger_json_data)
         if not response.ok:
