@@ -412,8 +412,6 @@ class HarnessDriver(Adjust):
             results = subprocess.run(['sh', '/servo/allow-adjust-query.sh', APP, URL], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             while(results.returncode == 1):
                 print("BLACKOUT: {}".format(results.stdout.rstrip()), file=sys.stdout)
-                self.progress_message= "Put a message in a bottle"
-                self.print_progress()
                 time.sleep(300)
                 results = subprocess.run(['sh', '/servo/allow-adjust-query.sh', APP, URL], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             print("DEBUG DONE DONE DONE DEBUG", file=sys.stdout)
