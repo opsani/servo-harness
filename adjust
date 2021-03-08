@@ -412,11 +412,11 @@ class HarnessDriver(Adjust):
             results = subprocess.run(['sh', '/servo/allow-adjust-query.sh', APP, URL], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             while(results.returncode == 1):
                 self.progress_message = "test"
-                print("BLACKOUT: {}".format(results.stdout.rstrip()), file=sys.stdout)
+                print("BLACKOUT: {}".format(results.stdout.rstrip()), file=sys.stderr)
                 time.sleep(300)
                 results = subprocess.run(['sh', '/servo/allow-adjust-query.sh', APP, URL], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 continue           
-            print("DEBUG DONE DONE DONE DEBUG", file=sys.stdout)
+            print("DEBUG DONE DONE DONE DEBUG", file=sys.stderr)
 
         response = self.trigger_session.post(url=trigger_url, json=trigger_json_data)
         if not response.ok:
