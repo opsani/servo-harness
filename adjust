@@ -406,13 +406,14 @@ class HarnessDriver(Adjust):
         # allow_adjust_url allows you to set a URL in your servo config for an API call that will run an external script
         # loaded info a configmap and watch for the response code of the script to determine whether adjustments are currently allowed.
         if self.config['allow_adjust_url']:
-            URL = self.config['allow_adjust_url']
-            APP = self.config['application_name']
-            results = subprocess.run("/servo/allow-adjust-query.sh {} {}".format(self.config['application_name'],self.config['allow_adjust_url']), shell=True, capture_output=True)
+            # URL = self.config['allow_adjust_url']
+            # APP = self.config['application_name']
+            
+            results = subprocess.run("/servo/allow-adjust-query.sh {} {}".format(self.config['application_name'],self.config['allow_adjust_url']), stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
             while(results.returncode == 1):
                 print("BLACKOUT: {}".format(results.stdout.rstrip()), file=sys.stderr)
                 time.sleep(300)
-                results = subprocess.run("/servo/allow-adjust-query.sh {} {}".format(self.config['application_name'],self.config['allow_adjust_url']), shell=True, capture_output=True)
+                results = subprocess.run("/servo/allow-adjust-query.sh {} {}".format(self.config['application_name'],self.config['allow_adjust_url']), stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
             print("DEBUG DONE DONE DONE DEBUG", file=sys.stdout)
 
         response = self.trigger_session.post(url=trigger_url, json=trigger_json_data)
