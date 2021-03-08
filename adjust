@@ -409,11 +409,11 @@ class HarnessDriver(Adjust):
             # URL = self.config['allow_adjust_url']
             # APP = self.config['application_name']
             
-            results = subprocess.run("/servo/allow-adjust-query.sh {} {}".format(self.config['application_name'],self.config['allow_adjust_url']), stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
+            results = subprocess.run("sh", "/servo/allow-adjust-query.sh {} {}".format(self.config['application_name'],self.config['allow_adjust_url']), stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
             while(results.returncode == 1):
                 print("BLACKOUT: {}".format(results.stdout.rstrip()), file=sys.stderr)
                 time.sleep(300)
-                results = subprocess.run("/servo/allow-adjust-query.sh {} {}".format(self.config['application_name'],self.config['allow_adjust_url']), stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
+                results = subprocess.run("sh", "/servo/allow-adjust-query.sh {} {}".format(self.config['application_name'],self.config['allow_adjust_url']), stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
             print("DEBUG DONE DONE DONE DEBUG", file=sys.stdout)
 
         response = self.trigger_session.post(url=trigger_url, json=trigger_json_data)
