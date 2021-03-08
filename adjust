@@ -408,9 +408,10 @@ class HarnessDriver(Adjust):
         if self.config['allow_adjust_url']:
             URL = self.config['allow_adjust_url']
             APP = self.config['application_name']
-            
+            self.progress_message = "test"
             results = subprocess.run(['sh', '/servo/allow-adjust-query.sh', APP, URL], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             while(results.returncode == 1):
+                self.progress_message = "test"
                 print("BLACKOUT: {}".format(results.stdout.rstrip()), file=sys.stdout)
                 time.sleep(300)
                 results = subprocess.run(['sh', '/servo/allow-adjust-query.sh', APP, URL], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
