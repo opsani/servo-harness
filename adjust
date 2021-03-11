@@ -399,7 +399,8 @@ class HarnessDriver(Adjust):
         }
         if target == 'mainline':
             trigger_json_data['promote'] = 'True'
-
+        
+        self.progress = 50
         self.progress_message = 'Triggering {} webhook'.format(target)
         self.print_progress()
 
