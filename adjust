@@ -393,7 +393,7 @@ class HarnessDriver(Adjust):
         if trigger_url is None:
             raise AdjustError('Unable to parse {} harness webhook URL from response json. Data: {}'.format(target, response.json()))
 
-        weights =[10,25,50,75,100]
+        weights =[1,10,25,50,75,100]
 
         for weight in weights:
             trigger_json_data = {
@@ -430,7 +430,7 @@ class HarnessDriver(Adjust):
                 if time.time() - start_time > self.config.get('adjust_timeout', DEFAULT_ADJUST_TIMEOUT):
                     raise AdjustError('Timed out waiting for completion of {} adjustment'.format(target))
     
-                time.sleep(300)
+            time.sleep(300)
 
     def _adjust_graphql(self, cpu, mem, app_id, target):
         assert target in ['canary', 'mainline'], 'Invalid target {} given to  _adjust_graphql'.format(target)
