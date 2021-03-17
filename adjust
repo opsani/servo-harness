@@ -55,7 +55,7 @@ query {{
 
 query_canary_workflow_id = """
 query {{
-  workflowByName(applicationId:"{}",workflowName:"opsani-canary-deploy"){{
+  workflowByName(applicationId:"{}",workflowName:"opsani-canary-rollout"){{
     id
     name
   }}
@@ -73,7 +73,7 @@ query {{
 
 query_webhook_url = """
 query {{
-  triggerByName(applicationId:"{}",triggerName: "opsani-canary-rollout") {{
+  triggerByName(applicationId:"{}",triggerName: "opsani-canary-update") {{
     id
     condition {{
       ... on OnWebhook {{
@@ -357,18 +357,23 @@ class HarnessDriver(Adjust):
             raise AdjustError('Unable to parse harness application id from response json. Data: {}'.format(response.json()))
 
         if canary_settings:
+            weights = [1,10,25,50,75,100]
             cpu_val, mem_val = self._parse_input_values(canary_settings)
-            if self.config.get('adjust_interface', 'graphql') == 'graphql':
-                self._adjust_graphql(cpu_val, mem_val, app_id, 'canary')
-            else:
-                self._adjust_webhook(cpu_val, mem_val, app_id, 'canary')
+            for weight in weights:
+              if self.config.get('adjust_interface', 'graphql') == 'graphql':
+                  self._adjust_graphql(cpu_val, mem_val, app_id, 'canary',weight)
+                  time.sleep(300)
+              else:
+                  self._adjust_webhook(cpu_val, mem_val, app_id, 'canary',weight)
+                  time.sleep(300)
                 
         if mainline_settings:
             cpu_val, mem_val = self._parse_input_values(mainline_settings)
+            weight = 100
             if self.config.get('promote_interface', 'graphql') == 'graphql':
-                self._adjust_graphql(cpu_val, mem_val, app_id, 'mainline')
+                self._adjust_graphql(cpu_val, mem_val, app_id, 'mainline', weight)
             else:
-                self._adjust_webhook(cpu_val, mem_val, app_id, 'mainline')
+                self._adjust_webhook(cpu_val, mem_val, app_id, 'mainline', weight)
 
     def _parse_input_values(self, settings):
         'Retrieve cpu and mem values from input json and convert to target platform units based on loaded config'
@@ -380,7 +385,7 @@ class HarnessDriver(Adjust):
             mem_val = str(int(settings['mem']['value'] * 1024)) # convert GiB to MiB
         return cpu_val, mem_val
         
-    def _adjust_webhook(self, cpu, mem, app_id, target):
+    def _adjust_webhook(self, cpu, mem, app_id, target, weight):
         assert target in ['canary', 'mainline'], 'Invalid target {} given to  _adjust_webhook'.format(target)
         self.progress_message = 'Preparing to trigger {} worlfow via webhook'.format(target) # Don't print unless this part takes longer than 30s
 
@@ -393,47 +398,45 @@ class HarnessDriver(Adjust):
         if trigger_url is None:
             raise AdjustError('Unable to parse {} harness webhook URL from response json. Data: {}'.format(target, response.json()))
 
-        weights =[1,10,25,50,75,100]
+        trigger_json_data = {
+            "application": app_id,
+            "parameters": { "cpu": cpu, "mem": mem, "weight": weight },
+        }
+        if target == 'mainline':
+            trigger_json_data['promote'] = 'True'
 
-        for weight in weights:
-            trigger_json_data = {
-                "application": app_id,
-                "parameters": { "weight": weight, "cpu": cpu, "mem": mem },
-            }
-            if target == 'mainline':
-              trigger_json_data['promote'] = 'True'
-            self.progress_message = 'Triggering {} webhook with weight {}'.format(target,weight)
-            self.print_progress()
-            response = self.trigger_session.post(url=trigger_url, json=trigger_json_data)
-            if not response.ok:
-              raise AdjustError('Unable to trigger {} harness workflow webhook. Status code {}. Data {}. Trigger URL {}. Trigger JSON {}.'.format(target, response.status_code, response.text, trigger_url, trigger_json_data))
+        self.progress_message = 'Triggering {} webhook'.format(target)
+        self.print_progress()
 
-            trigger_result = response.json()
-            if not trigger_result.get('apiUrl'):
-              raise AdjustError('Response for {} workflow trigger response contained no status url. Response: {}'.format(target, response.text))
+        response = self.trigger_session.post(url=trigger_url, json=trigger_json_data)
+        if not response.ok:
+            raise AdjustError('Unable to trigger {} harness workflow webhook. Status code {}. Data {}. Trigger URL {}. Trigger JSON {}.'.format(target, response.status_code, response.text, trigger_url, trigger_json_data))
 
-            status_url = trigger_result["apiUrl"].replace("https://app.harness.io/api/","https://app.harness.io/gateway/api/")
-            self.progress_message = 'Waiting for {} workflow status SUCCESS'.format(target)
-            start_time = time.time()
-            while True:
-                status_response = self.status_session.get(url=status_url)
-                if not status_response.ok:
-                    raise AdjustError('Unable to get triggered {} workflow status. Status code {}. Data {}'.format(target, status_response.status_code, status_response.text))
-                
-                status_json = status_response.json()
-                if status_json['status'] == 'SUCCESS':
-                    self.progress_message = 'Triggered {} workflow finished with SUCCESS status: {} with weight {}'.format(target,status_json,weight)
-                    self.print_progress()
-                    time.sleep(300)
-                    break
-                if status_json['status'] == 'FAILED':
-                    raise AdjustError('Triggered {} workflow finished with FAILED status: {}'.format(target, status_json))
-                # else: status == 'RUNNING'
-    
-                if time.time() - start_time > self.config.get('adjust_timeout', DEFAULT_ADJUST_TIMEOUT):
-                    raise AdjustError('Timed out waiting for completion of {} adjustment'.format(target))
+        trigger_result = response.json()
+        if not trigger_result.get('apiUrl'):
+            raise AdjustError('Response for {} workflow trigger response contained no status url. Response: {}'.format(target, response.text))
 
-    def _adjust_graphql(self, cpu, mem, app_id, target):
+        status_url = trigger_result["apiUrl"].replace("https://app.harness.io/api/","https://app.harness.io/gateway/api/")
+        self.progress_message = 'Waiting for {} workflow status SUCCESS'.format(target)
+        start_time = time.time()
+        while True:
+            status_response = self.status_session.get(url=status_url)
+            if not status_response.ok:
+                raise AdjustError('Unable to get triggered {} workflow status. Status code {}. Data {}'.format(target, status_response.status_code, status_response.text))
+            
+            status_json = status_response.json()
+            if status_json['status'] == 'SUCCESS':
+                break
+            if status_json['status'] == 'FAILED':
+                raise AdjustError('Triggered {} workflow finished with FAILED status: {}'.format(target, status_json))
+            # else: status == 'RUNNING'
+
+            if time.time() - start_time > self.config.get('adjust_timeout', DEFAULT_ADJUST_TIMEOUT):
+                raise AdjustError('Timed out waiting for completion of {} adjustment'.format(target))
+
+            time.sleep(30)
+
+    def _adjust_graphql(self, cpu, mem, app_id, target, weight):
         assert target in ['canary', 'mainline'], 'Invalid target {} given to  _adjust_graphql'.format(target)
         self.progress_message = 'Preparing to trigger {} worlfow via graphql'.format(target) # Don't print unless this part takes longer than 30s
 
