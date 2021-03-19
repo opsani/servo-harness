@@ -55,7 +55,7 @@ query {{
 
 query_canary_workflow_id = """
 query {{
-  workflowByName(applicationId:"{}",workflowName:"opsani-canary-rollout"){{
+  workflowByName(applicationId:"{}",workflowName:"opsani-canary-deploy"){{
     id
     name
   }}
@@ -73,7 +73,7 @@ query {{
 
 query_webhook_url = """
 query {{
-  triggerByName(applicationId:"{}",triggerName: "opsani-canary-update") {{
+  triggerByName(applicationId:"{}",triggerName: "opsani-canary-rollout") {{
     id
     condition {{
       ... on OnWebhook {{
