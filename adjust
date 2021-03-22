@@ -408,12 +408,16 @@ class HarnessDriver(Adjust):
         if self.config['allow_adjust_url']:
             URL = self.config['allow_adjust_url']
             APP = self.config['application_name']
-            results = subprocess.run(['sh', '/servo/allow-adjust-query.sh', APP, URL], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            while(results.returncode == 1):
-                self.progress_message = 'Unable to adjust due to blackout window: {}'.format(results.stdout.rstrip())
-                self.print_progress()
-                time.sleep(30)
-                results = subprocess.run(['sh', '/servo/allow-adjust-query.sh', APP, URL], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            while True:
+              results = subprocess.run(['sh', '/servo/allow-adjust-query.sh', APP, URL], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+              if results.returncode == 1:
+                  self.progress_message = 'Unable to adjust due to blackout window: {}'.format(results.stdout.rstrip())
+                  self.print_progress()
+                  time.sleep(30)
+              elif(results.returncode == 0):
+                  self.progress_message = 'Not in Blackout Window - proceeding with adjust: {}'.format(results.stdout.rstrip())
+                  self.print_progress()
+                  break
 
         response = self.trigger_session.post(url=trigger_url, json=trigger_json_data)
         if not response.ok:
