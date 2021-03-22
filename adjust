@@ -418,6 +418,7 @@ class HarnessDriver(Adjust):
                   self.progress_message = 'Not in Blackout Window - proceeding with adjust: {}'.format(results.stdout.rstrip())
                   self.print_progress()
                   break
+              break
 
         response = self.trigger_session.post(url=trigger_url, json=trigger_json_data)
         if not response.ok:
