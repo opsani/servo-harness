@@ -357,7 +357,7 @@ class HarnessDriver(Adjust):
             raise AdjustError('Unable to parse harness application id from response json. Data: {}'.format(response.json()))
 
         if canary_settings:
-            weights = [1,10,25,50,75,100]
+            weights = [0,1,10,25,50,75,100]
             cpu_val, mem_val = self._parse_input_values(canary_settings)
             for weight in weights:
               if self.config.get('adjust_interface', 'graphql') == 'graphql':
