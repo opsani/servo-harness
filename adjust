@@ -400,7 +400,7 @@ class HarnessDriver(Adjust):
 
         trigger_json_data = {
             "application": app_id,
-            "parameters": { "cpu": cpu, "mem": mem, "weight": weight },
+            "parameters": { "cpu": cpu, "mem": mem, "canaryWeight": weight },
         }
         if target == 'mainline':
             trigger_json_data['promote'] = 'True'
