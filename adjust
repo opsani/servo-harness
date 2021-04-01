@@ -360,14 +360,15 @@ class HarnessDriver(Adjust):
         if canary_settings:
             weights = [0,1,10,25,50,75,100]
             cpu_val, mem_val = self._parse_input_values(canary_settings)
+            input_data = json.dumps(data)
             for weight in weights:
               if self.config.get('adjust_interface', 'graphql') == 'graphql':
                   self._adjust_graphql(cpu_val, mem_val, app_id, 'canary', weight)
-                  subprocess.run(['./measure', app_id, data], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                  subprocess.run(['./measure', app_id, input_data], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                   time.sleep(300)
               else:
                   self._adjust_webhook(cpu_val, mem_val, app_id, 'canary',weight)
-                  subprocess.run(['./measure', app_id, data], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                  subprocess.run(['./measure', app_id, input_data], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                   time.sleep(300)
                 
         if mainline_settings:
