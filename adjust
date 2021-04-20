@@ -6,6 +6,7 @@ import requests
 import sys
 import time
 import yaml
+import subprocess
 
 from adjust import Adjust, AdjustError
 
@@ -73,7 +74,7 @@ query {{
 
 query_webhook_url = """
 query {{
-  triggerByName(applicationId:"{}",triggerName: "opsani-canary-update") {{
+  triggerByName(applicationId:"{}",triggerName: "opsani-canary-rollout") {{
     id
     condition {{
       ... on OnWebhook {{
@@ -357,18 +358,39 @@ class HarnessDriver(Adjust):
             raise AdjustError('Unable to parse harness application id from response json. Data: {}'.format(response.json()))
 
         if canary_settings:
+            weights = [0,1,10,25,50,75,100]
             cpu_val, mem_val = self._parse_input_values(canary_settings)
-            if self.config.get('adjust_interface', 'graphql') == 'graphql':
-                self._adjust_graphql(cpu_val, mem_val, app_id, 'canary')
-            else:
-                self._adjust_webhook(cpu_val, mem_val, app_id, 'canary')
-                
+            data["control"]["userdata"]["slo_check"] = 1
+            userdata = data["control"]
+            input_data = json.dumps(userdata)
+            for weight in weights:
+              # We are not using graphql for the adjust interface.  Don't need to handle this case at this time.
+              if self.config.get('adjust_interface', 'graphql') == 'graphql':
+                  self._adjust_graphql(cpu_val, mem_val, app_id, 'canary', weight)
+              else:
+                  self._adjust_webhook(cpu_val, mem_val, app_id, 'canary', weight)
+                  starttime = time.time()
+                  iteration = 0
+                  time.sleep(120)
+                  while iteration <= 5:
+                    iteration = iteration + 1
+                    results = subprocess.run(['./measure', app_id], input=input_data.encode('UTF-8'), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                    if results.returncode == 0:
+                      self.progress_message = 'BENTEST: PASS'
+                    elif results.returncode == 1:
+                      self.progress_message =  'BENTEST: FAIL'
+                    #self.progress_message = 'RETURN CODE: {}'.format(results.returncode)
+                    self.print_progress()
+                    time.sleep(60.0 - ((time.time() - starttime) % 60.0))
+        data["control"]["userdata"]["slo_check"] = 0
+
         if mainline_settings:
             cpu_val, mem_val = self._parse_input_values(mainline_settings)
+            weight = 100
             if self.config.get('promote_interface', 'graphql') == 'graphql':
-                self._adjust_graphql(cpu_val, mem_val, app_id, 'mainline')
+                self._adjust_graphql(cpu_val, mem_val, app_id, 'mainline', weight)
             else:
-                self._adjust_webhook(cpu_val, mem_val, app_id, 'mainline')
+                self._adjust_webhook(cpu_val, mem_val, app_id, 'mainline', weight)
 
     def _parse_input_values(self, settings):
         'Retrieve cpu and mem values from input json and convert to target platform units based on loaded config'
@@ -380,7 +402,7 @@ class HarnessDriver(Adjust):
             mem_val = str(int(settings['mem']['value'] * 1024)) # convert GiB to MiB
         return cpu_val, mem_val
         
-    def _adjust_webhook(self, cpu, mem, app_id, target):
+    def _adjust_webhook(self, cpu, mem, app_id, target, weight):
         assert target in ['canary', 'mainline'], 'Invalid target {} given to  _adjust_webhook'.format(target)
         self.progress_message = 'Preparing to trigger {} worlfow via webhook'.format(target) # Don't print unless this part takes longer than 30s
 
@@ -395,7 +417,7 @@ class HarnessDriver(Adjust):
 
         trigger_json_data = {
             "application": app_id,
-            "parameters": { "cpu": cpu, "mem": mem },
+            "parameters": { "cpu": cpu, "mem": mem, "canaryWeight": weight },
         }
         if target == 'mainline':
             trigger_json_data['promote'] = 'True'
@@ -431,7 +453,7 @@ class HarnessDriver(Adjust):
 
             time.sleep(30)
 
-    def _adjust_graphql(self, cpu, mem, app_id, target):
+    def _adjust_graphql(self, cpu, mem, app_id, target, weight):
         assert target in ['canary', 'mainline'], 'Invalid target {} given to  _adjust_graphql'.format(target)
         self.progress_message = 'Preparing to trigger {} worlfow via graphql'.format(target) # Don't print unless this part takes longer than 30s
 
