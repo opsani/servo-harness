@@ -366,6 +366,9 @@ class HarnessDriver(Adjust):
             samples = 3
             slo_data = { "control": data["control"] }
             input_data = json.dumps(slo_data)
+            self.progress_message = "Starting deployment ramp-up..."
+            self.progress = 10
+            self.print_progress()
             for weight in weights:
               # We are not using graphql for the adjust interface.  Don't need to handle this case at this time.
               if self.config.get('adjust_interface', 'graphql') == 'graphql':
@@ -373,6 +376,8 @@ class HarnessDriver(Adjust):
               else:
                   self._adjust_webhook(cpu_val, mem_val, app_id, 'canary', weight)
                   self.progress_message = "Waiting to collect metrics for {}s".format(skip_time)
+                  self.progress = self.progress + 10
+                  self.print_progress()
                   time.sleep(skip_time)
                   starttime = time.time()
                   iteration = 0
@@ -381,19 +386,22 @@ class HarnessDriver(Adjust):
                     iteration = iteration + 1
                     results = subprocess.run(['./measure', app_id], input=input_data.encode('UTF-8'), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                     if results.returncode == 0:
-                      self.progress_message = "SLO Check Healthy.  Checking again in 60s. STDOUT: {} STDERR: {}.".format(results.stdout,results.stderr)
+                      self.progress_message = "SLO Check Healthy.  Retrying in 1 minute. STDOUT: {} STDERR: {}.".format(results.stdout,results.stderr)
+                      self.progress - self.progress + 1
                       self.print_progress()
                       time.sleep(60.0 - ((time.time() - starttime) % 60.0))
                     elif results.returncode == 1:
+                      failed_check = failed_check + 1
                       self.progress_message = "SLO Check Failed. Retrying in 1 minute.  Checks failed: {}. STDOUT: {} STDERR: {}.".format(failed_check,results.stdout,results.stderr)
+                      self.progress - self.progress + 1
                       self.print_progress()
                       time.sleep(60.0 - ((time.time() - starttime) % 60.0))
-                      failed_check = failed_check + 1
                       if failed_check >= samples:
                         self.progress_message = "SLO Check Failed Consistently: {} of {} in a row failed.  Rejecting Adjustment and setting tuning instance to take 0 traffic. STDOUT: {} STDERR: {}.".format(failed_check,samples,results.stdout,results.stderr)
                         self.print_progress()
                         self._adjust_webhook(cpu_val, mem_val, app_id, 'canary', 0)
-                        return {"status": "rejected", "reason": "slo-violation"}
+                        message = results.stdout.decode('utf-8')
+                        return {"status": "rejected", "reason": "unstable", "message": message}
         data["control"]["userdata"]["slo_check"] = 0
 
         if mainline_settings:
